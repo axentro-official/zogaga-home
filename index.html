@@ -12,14 +12,15 @@
 </head>
 <body>
 
-  <!-- بوابة الترخيص — ظاهرة افتراضياً، والجافاسكريبت يخفيها بعد التفعيل -->
+  <!-- بوابة الترخيص -->
   <div id="licenseGate" class="gate">
     <div class="gate-card">
       <img src="assets/images/logo.png" alt="زجاجه هوم" class="gate-logo">
       <h1 class="gate-title">زجاجه هوم</h1>
       <p class="gate-sub">ZOGAGA HOME — نظام المبيعات والمخزون</p>
-              <div id="licenseBox">
-        <div id="gateMsg" class="gate-msg"></div>
+
+      <div id="licenseBox">
+        <div id="gateMsg" class="gate-msg">جاري التحقق من الترخيص...</div>
         <input id="gateKey" class="gate-input" type="text" placeholder="أدخل مفتاح التفعيل (License Key)" autocomplete="off">
         <button id="gateBtn" class="btn-gold" type="button">تفعيل البرنامج</button>
         <a id="gateContact" class="btn-contact" href="https://axentro.site/links.html" target="_blank" rel="noopener">تواصل مع الإدارة</a>
@@ -27,16 +28,18 @@
       </div>
 
       <div id="loginBox" hidden>
-        <div class="gate-msg">تم تفعيل الترخيص بنجاح ✅<br>سجّل الدخول لبدء استخدام البرنامج</div>
+        <div id="loginMsg" class="gate-msg">سجّل الدخول للمتابعة</div>
         <input id="loginPass" class="gate-input" type="password" placeholder="كلمة المرور" inputmode="numeric" autocomplete="off">
         <button id="loginBtn" class="btn-gold" type="button">دخول</button>
         <p id="loginHint" class="gate-hint"></p>
       </div>
+
       <div class="gate-footer">
         <p>© 2024 Axentro – All Rights Reserved · Powered By Axentro</p>
         <a href="https://axentro.site/links.html" target="_blank" rel="noopener" aria-label="Axentro Links">
           <img src="assets/images/qr.png" alt="QR Axentro" class="gate-qr">
         </a>
+        <p class="scan-me">Scan Me &gt; Click On Me</p>
       </div>
     </div>
   </div>
@@ -52,7 +55,7 @@
     <div class="topbar-left">
       <span id="licChip" class="lic-chip" hidden></span>
       <button id="logoutBtn" class="btn-logout" type="button" hidden>🚪 خروج</button>
-      <span class="ver-chip">v0.2</span>
+      <span class="ver-chip">v0.3</span>
     </div>
   </header>
 
@@ -70,7 +73,21 @@
     <a class="qr-link" href="https://axentro.site/links.html" target="_blank" rel="noopener" aria-label="Axentro Links">
       <img src="assets/images/qr.png" alt="QR Axentro" class="qr-img">
     </a>
+    <p class="scan-me">Scan Me &gt; Click On Me</p>
   </footer>
+
+  <!-- نافذة تأكيد تسجيل الخروج -->
+  <div id="logoutModal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-icon">🚪</div>
+      <h3 class="modal-title">تأكيد تسجيل الخروج</h3>
+      <p class="modal-text">هل انت متأكد إنك عايز تخرج من البرنامج؟<br>هتحتاج تدخل كلمة المرور تاني عند الرجوع.</p>
+      <div class="modal-actions">
+        <button id="logoutYes" class="btn-danger" type="button">نعم، خروج</button>
+        <button id="logoutNo" class="btn-cancel" type="button">إلغاء</button>
+      </div>
+    </div>
+  </div>
 
   <script src="assets/js/license.js"></script>
   <script>
