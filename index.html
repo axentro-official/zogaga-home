@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="UTF-8">
+  <title>زجاجه هوم | نظام المبيعات والمخزون</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#14100B">
+  <link rel="icon" type="image/svg+xml" href="favicon.svg">
+  <link rel="apple-touch-icon" href="assets/images/logo-192.png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="assets/css/style.css">
+</head>
+<body>
+
+  <!-- بوابة الترخيص — ظاهرة افتراضياً، والجافاسكريبت يخفيها بعد التفعيل -->
+  <div id="licenseGate" class="gate">
+    <div class="gate-card">
+      <img src="assets/images/logo.png" alt="زجاجه هوم" class="gate-logo">
+      <h1 class="gate-title">زجاجه هوم</h1>
+      <p class="gate-sub">ZOGAGA HOME — نظام المبيعات والمخزون</p>
+      <div id="gateMsg" class="gate-msg"></div>
+      <input id="gateKey" class="gate-input" type="text" placeholder="أدخل مفتاح التفعيل (License Key)" autocomplete="off">
+      <button id="gateBtn" class="btn-gold" type="button">تفعيل البرنامج</button>
+      <a id="gateContact" class="btn-contact" href="https://axentro.site/links.html" target="_blank" rel="noopener">تواصل مع الإدارة</a>
+      <p id="gateHint" class="gate-hint"></p>
+      <div class="gate-footer">
+        <p>© 2024 Axentro – All Rights Reserved · Powered By Axentro</p>
+        <a href="https://axentro.site/links.html" target="_blank" rel="noopener" aria-label="Axentro Links">
+          <img src="assets/images/qr.png" alt="QR Axentro" class="gate-qr">
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <header class="topbar">
+    <div class="brand">
+      <img src="assets/images/logo.png" alt="زجاجه هوم" class="brand-logo">
+      <div class="brand-text">
+        <strong>زجاجه هوم</strong>
+        <span>ZOGAGA HOME — نظام المبيعات والمخزون</span>
+      </div>
+    </div>
+    <div class="topbar-left">
+      <span id="licChip" class="lic-chip" hidden></span>
+      <span class="ver-chip">v0.2</span>
+    </div>
+  </header>
+
+  <main class="splash">
+    <img src="assets/images/logo.png" alt="شعار زجاجه هوم" class="splash-logo">
+    <h1>زجاجه هوم</h1>
+    <p class="tagline">أدوات منزلية • مبيعات • مخزون • تقارير</p>
+    <button id="installBtn" class="btn-gold" hidden>📲 ثبّت البرنامج على جهازك</button>
+    <p class="hint">المرحلة التالية: الأصناف والمخزون — تحت الإنشاء</p>
+  </main>
+
+  <footer class="app-footer">
+    <p class="copy">© 2024 Axentro – All Rights Reserved<br>By Axentro Team</p>
+    <p class="powered">Powered By <strong>Axentro</strong></p>
+    <a class="qr-link" href="https://axentro.site/links.html" target="_blank" rel="noopener" aria-label="Axentro Links">
+      <img src="assets/images/qr.png" alt="QR Axentro" class="qr-img">
+    </a>
+  </footer>
+
+  <script src="assets/js/license.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('service-worker.js').catch(console.log);
+      });
+    }
+    let deferredPrompt = null;
+    window.addEventListener('beforeinstallprompt', (e) => {
+      e.preventDefault();
+      deferredPrompt = e;
+      const btn = document.getElementById('installBtn');
+      btn.hidden = false;
+      btn.addEventListener('click', async () => {
+        btn.hidden = true;
+        deferredPrompt.prompt();
+        await deferredPrompt.userChoice;
+        deferredPrompt = null;
+      });
+    });
+  </script>
+</body>
+</html>
