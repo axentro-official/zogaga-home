@@ -55,16 +55,18 @@
     'offline-locked': '<strong>لا يوجد اتصال بالإنترنت، ومرت أكثر من 72 ساعة على آخر تحقق ناجح.</strong><br>اتصل بالإنترنت وحدّث الصفحة.'
   };
 
-  function showGate(mode, extraText) {
+    function showGate(mode, extraText) {
     gate.hidden = false;
+    document.body.classList.add('gate-open');
     gateMsg.innerHTML = GATE_MESSAGES[mode] || GATE_MESSAGES.activate;
     gateHint.textContent = extraText || (mode === 'activate' ? 'أدخل المفتاح اللي وصلك على بريدك الإلكتروني' : '');
     gateBtn.disabled = false;
     gateBtn.textContent = 'تفعيل البرنامج';
   }
 
-  function hideGate() {
+    function hideGate() {
     gate.hidden = true;
+    document.body.classList.remove('gate-open');
   }
 
   function setChecking() {
