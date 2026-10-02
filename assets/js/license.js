@@ -1,31 +1,38 @@
 /* ============================================
-   ZOGAGA HOME - License Gate + Login v1.2
-   تفعيل بمفتاح + قفل جهاز + سماح أوفلاين 72 ساعة
-   + دخول بكلمة مرور (تتحقق من السيرفر — مش متخزنة في الكود)
-   + خروج بتأكيد مخصص + حماية من العناصر الناقصة
+   ZOGAGA HOME - License Gate + Login v1.3
+   - تحقق ذكي: فحص كامل كل 12 ساعة فقط، والباقي من الذاكرة (بدون نت)
+   - إعادة محاولة تلقائية عند فشل السيرفر
+   - جلسة دائمة (تستحمل أي Refresh) + قفل تلقائي بعد 30 دقيقة عدم نشاط
+   - تفعيل بمفتاح + قفل جهاز + سماح أوفلاين 72 ساعة
    ============================================ */
 
 (function () {
   'use strict';
 
   const LICENSE_API = 'https://script.google.com/macros/s/AKfycbwOI1JExM6KE1k5Nd2x0AZqbd7FlRg_ba7p8BrXFwfJ38H1MsJP0mtmpG-e5Hod9Oy2/exec';
-  const GRACE_MS = 72 * 60 * 60 * 1000;      // سماح أوفلاين: 72 ساعة
-  const RECHECK_MS = 6 * 60 * 60 * 1000;     // إعادة تحقق كل 6 ساعات والبرنامج مفتوح
+
+  const CHECK_INTERVAL_MS = 12 * 60 * 60 * 1000;  // فحص كامل كل 12 ساعة — الباقي من الذاكرة
+  const GRACE_MS = 72 * 60 * 60 * 1000;           // سماح أوفلاين: 72 ساعة
+  const IDLE_LOCK_MS = 30 * 60 * 1000;            // قفل تلقائي بعد 30 دقيقة عدم نشاط
   const FETCH_TIMEOUT = 15000;
+  const RETRY_DELAY = 1500;
 
   const LS_KEY = 'zg_license_key';
   const LS_FP = 'zg_device_fp';
   const LS_LAST = 'zg_last_check';
-  const LS_PHASH = 'zg_pass_hash';   // بصمة كلمة المرور من آخر دخول ناجح (للأوفلاين فقط)
-  const SS_SESSION = 'zg_session';
+  const LS_STATUS = 'zg_last_status';   // نص آخر حالة ناجحة (نص الشريحة + هل مدى الحياة)
+  const LS_PHASH = 'zg_pass_hash';      // بصمة كلمة المرور من آخر دخول ناجح (للأوفلاين فقط)
+  const LS_SESSION = 'zg_session';      // الجلسة في localStorage — بتستحمل أي Refresh
 
   let gate, licenseBox, gateMsg, gateKey, gateBtn, gateHint, licChip;
   let loginBox, loginMsg, loginPass, loginBtn, loginHint;
   let logoutBtn, logoutModal;
+  let sessionActive = false;
+  let idleTimer = null;
+  let isFetching = false;
 
   function $(id) { return document.getElementById(id); }
 
-  // ربط آمن — لو عنصر ناقص البرنامج ميفشلش كله
   function bind(id, ev, fn) {
     const el = $(id);
     if (el) el.addEventListener(ev, fn);
@@ -62,17 +69,17 @@
     suspended: '<strong>تم إيقاف الاشتراك مؤقتاً من الإدارة.</strong><br>تواصل مع الإدارة لمعرفة التفاصيل.',
     locked: '<strong>هذا المفتاح مرتبط بجهاز آخر.</strong><br>لنقل الترخيص لجهاز جديد، تواصل مع الإدارة.',
     invalid: '<strong>المفتاح غير صحيح.</strong><br>تأكد من كتابته بالظبط زي ما وصلك على البريد.',
-    'error': '<strong>حدث خطأ في التحقق.</strong><br>حاول تاني، ولو استمرت المشكلة تواصل مع الإدارة.',
-    'offline-locked': '<strong>لا يوجد اتصال بالإنترنت، ومرت أكثر من 72 ساعة على آخر تحقق ناجح.</strong><br>اتصل بالإنترنت وحدّث الصفحة.'
+    'error': '<strong>تعذر الاتصال بخادم التراخيص حاليًا.</strong><br>تأكد من الاتصال بالإنترنت وحاول تاني.'
   };
 
   const LOGIN_MSGS = {
     activated: 'تم تفعيل الترخيص بنجاح ✅<br>سجّل الدخول لبدء استخدام البرنامج',
     back: 'مرحبًا بيك تاني 👋<br>سجّل الدخول للمتابعة',
-    loggedout: 'تم تسجيل الخروج بنجاح<br>سجّل الدخول من جديد للمتابعة'
+    loggedout: 'تم تسجيل الخروج بنجاح<br>سجّل الدخول من جديد للمتابعة',
+    idle: 'تم قفل البرنامج تلقائيًا بعد فترة عدم نشاط 🔒<br>سجّل الدخول للمتابعة'
   };
 
-  // --- إدارة الواجهات: ترخيص / دخول / مفتوح ---
+  // --- الواجهات: ترخيص / دخول / مفتوح ---
   function openGate() {
     gate.hidden = false;
     document.body.classList.add('gate-open');
@@ -99,9 +106,20 @@
   }
 
   function unlockApp() {
+    sessionActive = true;
     gate.hidden = true;
     document.body.classList.remove('gate-open');
     logoutBtn.hidden = false;
+    resetIdle();
+  }
+
+  function lockApp(mode) {
+    sessionActive = false;
+    stopIdle();
+    localStorage.removeItem(LS_SESSION);
+    logoutBtn.hidden = true;
+    if (logoutModal) logoutModal.hidden = true;
+    showLogin(mode || 'back');
   }
 
   function updateChip(text) {
@@ -116,6 +134,60 @@
     loginBox.classList.add('shake');
   }
 
+  // --- قفل تلقائي بعد عدم نشاط ---
+  function resetIdle() {
+    if (!sessionActive) return;
+    stopIdle();
+    idleTimer = setTimeout(() => {
+      lockApp('idle');
+    }, IDLE_LOCK_MS);
+  }
+
+  function stopIdle() {
+    if (idleTimer) { clearTimeout(idleTimer); idleTimer = null; }
+  }
+
+  ['click', 'keydown', 'mousemove', 'touchstart'].forEach(ev => {
+    document.addEventListener(ev, resetIdle, { passive: true });
+  });
+
+  // --- طلب HTTP مع مهلة + إعادة محاولة واحدة ---
+  async function fetchWithRetry(url, options) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
+      try {
+        const res = await fetch(url, { ...(options || {}), signal: controller.signal });
+        clearTimeout(t);
+        return res;
+      } catch (e) {
+        clearTimeout(t);
+        if (attempt === 2) throw e;
+        await new Promise(r => setTimeout(r, RETRY_DELAY));
+      }
+    }
+  }
+
+  // --- حالة مخزنة (من آخر تحقق ناجح) ---
+  function applyCachedState() {
+    let cached = null;
+    try { cached = JSON.parse(localStorage.getItem(LS_STATUS) || 'null'); } catch (e) {}
+    const last = Number(localStorage.getItem(LS_LAST) || 0);
+    const lastStr = last ? new Date(last).toLocaleString('ar-EG') : '';
+    updateChip(cached && cached.remainingText ? cached.remainingText : 'الاشتراك مفعّل — آخر تحقق: ' + lastStr);
+    scheduleRecheck();
+    if (localStorage.getItem(LS_SESSION) === '1') { unlockApp(); } else { showLogin('back'); }
+  }
+
+  function saveSuccessState(data) {
+    localStorage.setItem(LS_LAST, String(Date.now()));
+    const remainingText = data.is_lifetime
+      ? 'الاشتراك: مدى الحياة'
+      : `الاشتراك ساري — متبقي ${data.days_left} يوم و ${data.hours_left} ساعة`;
+    localStorage.setItem(LS_STATUS, JSON.stringify({ remainingText: remainingText }));
+    updateChip(remainingText);
+  }
+
   // --- التحقق من الترخيص ---
   async function verify(key, opts) {
     const isActivation = !!(opts && opts.activating);
@@ -123,29 +195,21 @@
       gateBtn.disabled = true;
       gateBtn.textContent = 'جاري التحقق...';
     }
+    if (isFetching) return false;
+    isFetching = true;
 
     const url = LICENSE_API + '?key=' + encodeURIComponent(key) + '&fp=' + encodeURIComponent(getDeviceFp());
-    const controller = new AbortController();
-    const t = setTimeout(() => controller.abort(), FETCH_TIMEOUT);
 
     try {
-      const res = await fetch(url, { signal: controller.signal });
-      clearTimeout(t);
+      const res = await fetchWithRetry(url);
       const data = await res.json();
 
       if (data && data.status === 'active') {
         localStorage.setItem(LS_KEY, key);
-        localStorage.setItem(LS_LAST, String(Date.now()));
-        const remaining = data.is_lifetime
-          ? 'الاشتراك: مدى الحياة'
-          : `الاشتراك ساري — متبقي ${data.days_left} يوم و ${data.hours_left} ساعة`;
-        updateChip(remaining);
+        saveSuccessState(data);
         scheduleRecheck();
-        if (sessionStorage.getItem(SS_SESSION) === '1') {
-          unlockApp();
-        } else {
-          showLogin(isActivation ? 'activated' : 'back');
-        }
+        if (localStorage.getItem(LS_SESSION) === '1') { unlockApp(); }
+        else { showLogin(isActivation ? 'activated' : 'back'); }
         return true;
       }
 
@@ -155,18 +219,16 @@
       showGate('invalid'); return false;
 
     } catch (e) {
-      clearTimeout(t);
+      // السيرفر رنح (404/بطء) أو الشبكة مقطوعة → نعتمد آخر تحقق ناجح خلال 72 ساعة
       const last = Number(localStorage.getItem(LS_LAST) || 0);
       if (!isActivation && last && (Date.now() - last) < GRACE_MS) {
-        const lastDate = new Date(last).toLocaleString('ar-EG');
-        updateChip('وضع أوفلاين — آخر تحقق ناجح: ' + lastDate);
-        scheduleRecheck();
-        if (sessionStorage.getItem(SS_SESSION) === '1') { unlockApp(); } else { showLogin('back'); }
+        applyCachedState();
         return true;
       }
-      showGate(isActivation ? 'error' : 'offline-locked');
+      showGate(isActivation ? 'error' : 'error');
       return false;
     } finally {
+      isFetching = false;
       if (isActivation) { gateBtn.disabled = false; gateBtn.textContent = 'تفعيل البرنامج'; }
     }
   }
@@ -177,7 +239,18 @@
     verify(key, { activating: true });
   }
 
-  // --- الدخول: كلمة المرور بتتحقق من السيرفر (مش مخزنة في الكود) ---
+  // --- فحص ذكي عند فتح البرنامج ---
+  function bootVerify(key) {
+    const last = Number(localStorage.getItem(LS_LAST) || 0);
+    // آخر تحقق حديث؟ نفتح فورًا من غير نت خالص
+    if (last && (Date.now() - last) < CHECK_INTERVAL_MS) {
+      applyCachedState();
+      return;
+    }
+    verify(key);
+  }
+
+  // --- الدخول ---
   async function tryLogin() {
     const pass = loginPass.value.trim();
     if (!pass) { loginHint.textContent = 'اكتب كلمة المرور الأول'; return; }
@@ -185,45 +258,44 @@
     loginBtn.disabled = true;
     loginBtn.textContent = 'جاري التحقق...';
 
-    let serverOk = false;
-    let offlineOk = false;
+    let outcome = 'fail';           // fail | ok | offline-ok
     let reachable = true;
 
     try {
-      const res = await fetch(LICENSE_API, {
+      const res = await fetchWithRetry(LICENSE_API, {
         method: 'POST',
         headers: { 'Content-Type': 'text/plain;charset=utf-8' },
         body: JSON.stringify({ action: 'verifyLogin', password: pass })
       });
       const data = await res.json();
-      serverOk = !!(data && data.valid === true);
+      if (data && data.valid === true) outcome = 'ok';
     } catch (e) {
+      // السيرفر رنح أو الشبكة مقطوعة → fallback محلي
       reachable = false;
     }
 
-    // أوفلاين: مقارنة ببصمة آخر دخول ناجح على الجهاز ده
-    if (!reachable) {
+    if (outcome === 'fail' && !reachable) {
       const savedHash = localStorage.getItem(LS_PHASH);
       if (savedHash && savedHash === hash32(pass + '|' + getDeviceFp())) {
-        offlineOk = true;
+        outcome = 'offline-ok';
       }
     }
 
     loginBtn.disabled = false;
     loginBtn.textContent = 'دخول';
 
-    if (serverOk) {
+    if (outcome === 'ok') {
       localStorage.setItem(LS_PHASH, hash32(pass + '|' + getDeviceFp()));
-      sessionStorage.setItem(SS_SESSION, '1');
+      localStorage.setItem(LS_SESSION, '1');
       unlockApp();
-    } else if (offlineOk) {
-      sessionStorage.setItem(SS_SESSION, '1');
+    } else if (outcome === 'offline-ok') {
+      localStorage.setItem(LS_SESSION, '1');
       unlockApp();
       updateChip('وضع أوفلاين — تم الدخول من الذاكرة المحلية');
     } else {
       loginHint.textContent = reachable
         ? 'كلمة المرور غير صحيحة'
-        : 'لا يوجد اتصال — ولم يتم تسجيل دخول ناجح قبل كده على الجهاز ده';
+        : 'تعذر الاتصال بالخادم — ولم يُسجل دخول ناجح قبل كده على الجهاز ده';
       shakeLogin();
     }
   }
@@ -238,18 +310,18 @@
   }
 
   function confirmLogout() {
-    sessionStorage.removeItem(SS_SESSION);
-    logoutBtn.hidden = true;
-    closeLogoutModal();
-    showLogin('loggedout');
+    lockApp('loggedout');
   }
 
+  // --- فحص دوري: كل 30 دقيقة بيقارن، والفحص الفعلي كل 12 ساعة ---
   function scheduleRecheck() {
     if (scheduleRecheck._t) return;
     scheduleRecheck._t = setInterval(() => {
       const k = localStorage.getItem(LS_KEY);
-      if (k) verify(k);
-    }, RECHECK_MS);
+      if (!k) return;
+      const last = Number(localStorage.getItem(LS_LAST) || 0);
+      if ((Date.now() - last) >= CHECK_INTERVAL_MS) verify(k);
+    }, 30 * 60 * 1000);
   }
 
   function init() {
@@ -287,14 +359,17 @@
 
     const savedKey = localStorage.getItem(LS_KEY);
     if (savedKey) {
-      verify(savedKey);
+      bootVerify(savedKey);
     } else {
       showGate('activate');
     }
 
+    // أول ما النت يرجع → لو الفحص مستحق، نعمله فورًا
     window.addEventListener('online', () => {
       const k = localStorage.getItem(LS_KEY);
-      if (k) verify(k);
+      if (!k) return;
+      const last = Number(localStorage.getItem(LS_LAST) || 0);
+      if ((Date.now() - last) >= CHECK_INTERVAL_MS) verify(k);
     });
   }
 
