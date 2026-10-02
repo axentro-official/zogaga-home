@@ -89,6 +89,35 @@
     </div>
   </div>
 
+    <!-- شاشة انتهاء الاشتراك -->
+  <div id="expiredOverlay" class="gate expired-overlay" hidden>
+    <div class="gate-card">
+      <div class="expired-icon">⏳</div>
+      <h1 class="gate-title">انتهى الاشتراك</h1>
+      <p id="expiredWhen" class="gate-sub">—</p>
+
+      <div class="gate-msg expired-msg">
+        😊 <strong>مطمن — كل بياناتك محفوظة بأمان</strong><br>
+        أصنافك وفواتيرك وتقاريرك زي ما هي بالظبط، أول ما تشترك تاني البرنامج هيفتح على نفس النقطة اللي وقفت عندها.
+      </div>
+
+      <div id="expiredCountdown" class="expired-countdown"></div>
+
+      <input id="expiredKey" class="gate-input" type="text" placeholder="أدخل مفتاح الترخيص الجديد" autocomplete="off">
+      <button id="expiredActivate" class="btn-gold" type="button">تفعيل الاشتراك الجديد</button>
+      <p id="expiredHint" class="gate-hint"></p>
+      <a id="expiredContact" class="btn-contact" href="https://axentro.site/links.html" target="_blank" rel="noopener">📞 تواصل مع الإدارة للحصول على مفتاح جديد</a>
+
+      <div class="gate-footer">
+        <p>© 2024 Axentro – All Rights Reserved · Powered By Axentro</p>
+        <a href="https://axentro.site/links.html" target="_blank" rel="noopener" aria-label="Axentro Links">
+          <img src="assets/images/qr.png" alt="QR Axentro" class="gate-qr">
+        </a>
+        <p class="scan-me">Scan Me &gt; Click On Me</p>
+      </div>
+    </div>
+  </div>
+
   <script src="assets/js/license.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
