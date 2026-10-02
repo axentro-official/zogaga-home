@@ -1,30 +1,37 @@
 /* ============================================
-   ZOGAGA HOME - License Gate + Login v1.1
+   ZOGAGA HOME - License Gate + Login v1.2
    تفعيل بمفتاح + قفل جهاز + سماح أوفلاين 72 ساعة
-   + شاشة دخول بكلمة مرور + خروج بتأكيد مخصص
+   + دخول بكلمة مرور (تتحقق من السيرفر — مش متخزنة في الكود)
+   + خروج بتأكيد مخصص + حماية من العناصر الناقصة
    ============================================ */
 
 (function () {
   'use strict';
 
   const LICENSE_API = 'https://script.google.com/macros/s/AKfycbwOI1JExM6KE1k5Nd2x0AZqbd7FlRg_ba7p8BrXFwfJ38H1MsJP0mtmpG-e5Hod9Oy2/exec';
-  const LOGIN_PASSWORD = '1407'; // مؤقت — هنتنقل لتحقق من السيرفر في خطوة جاية
   const GRACE_MS = 72 * 60 * 60 * 1000;      // سماح أوفلاين: 72 ساعة
   const RECHECK_MS = 6 * 60 * 60 * 1000;     // إعادة تحقق كل 6 ساعات والبرنامج مفتوح
-  const FETCH_TIMEOUT = 15000;               // GAS بيبقى بطيء أول استدعاء — مبنخليش 10 ثواني
+  const FETCH_TIMEOUT = 15000;
 
   const LS_KEY = 'zg_license_key';
   const LS_FP = 'zg_device_fp';
   const LS_LAST = 'zg_last_check';
+  const LS_PHASH = 'zg_pass_hash';   // بصمة كلمة المرور من آخر دخول ناجح (للأوفلاين فقط)
   const SS_SESSION = 'zg_session';
 
   let gate, licenseBox, gateMsg, gateKey, gateBtn, gateHint, licChip;
-  let loginBox, loginPass, loginBtn, loginHint;
+  let loginBox, loginMsg, loginPass, loginBtn, loginHint;
   let logoutBtn, logoutModal;
 
   function $(id) { return document.getElementById(id); }
 
-  // --- بصمة الجهاز (ثابتة على نفس الجهاز) ---
+  // ربط آمن — لو عنصر ناقص البرنامج ميفشلش كله
+  function bind(id, ev, fn) {
+    const el = $(id);
+    if (el) el.addEventListener(ev, fn);
+  }
+
+  // --- بصمة الجهاز ---
   function hash32(str) {
     let h = 5381;
     for (let i = 0; i < str.length; i++) {
@@ -59,7 +66,13 @@
     'offline-locked': '<strong>لا يوجد اتصال بالإنترنت، ومرت أكثر من 72 ساعة على آخر تحقق ناجح.</strong><br>اتصل بالإنترنت وحدّث الصفحة.'
   };
 
-  // --- إدارة الواجهات الثلاث: ترخيص / دخول / مفتوح ---
+  const LOGIN_MSGS = {
+    activated: 'تم تفعيل الترخيص بنجاح ✅<br>سجّل الدخول لبدء استخدام البرنامج',
+    back: 'مرحبًا بيك تاني 👋<br>سجّل الدخول للمتابعة',
+    loggedout: 'تم تسجيل الخروج بنجاح<br>سجّل الدخول من جديد للمتابعة'
+  };
+
+  // --- إدارة الواجهات: ترخيص / دخول / مفتوح ---
   function openGate() {
     gate.hidden = false;
     document.body.classList.add('gate-open');
@@ -75,10 +88,11 @@
     gateBtn.textContent = 'تفعيل البرنامج';
   }
 
-  function showLogin() {
+  function showLogin(mode) {
     licenseBox.hidden = true;
     loginBox.hidden = false;
     openGate();
+    loginMsg.innerHTML = LOGIN_MSGS[mode] || LOGIN_MSGS.back;
     loginPass.value = '';
     loginHint.textContent = '';
     setTimeout(() => { try { loginPass.focus(); } catch (e) {} }, 60);
@@ -94,6 +108,12 @@
     if (!text) { licChip.hidden = true; return; }
     licChip.hidden = false;
     licChip.textContent = text;
+  }
+
+  function shakeLogin() {
+    loginBox.classList.remove('shake');
+    void loginBox.offsetWidth;
+    loginBox.classList.add('shake');
   }
 
   // --- التحقق من الترخيص ---
@@ -121,7 +141,11 @@
           : `الاشتراك ساري — متبقي ${data.days_left} يوم و ${data.hours_left} ساعة`;
         updateChip(remaining);
         scheduleRecheck();
-        if (sessionStorage.getItem(SS_SESSION) === '1') { unlockApp(); } else { showLogin(); }
+        if (sessionStorage.getItem(SS_SESSION) === '1') {
+          unlockApp();
+        } else {
+          showLogin(isActivation ? 'activated' : 'back');
+        }
         return true;
       }
 
@@ -132,13 +156,12 @@
 
     } catch (e) {
       clearTimeout(t);
-      // الشبكة مقطوعة أو السيرفر بطيء — سماح الـ 72 ساعة
       const last = Number(localStorage.getItem(LS_LAST) || 0);
       if (!isActivation && last && (Date.now() - last) < GRACE_MS) {
         const lastDate = new Date(last).toLocaleString('ar-EG');
         updateChip('وضع أوفلاين — آخر تحقق ناجح: ' + lastDate);
         scheduleRecheck();
-        if (sessionStorage.getItem(SS_SESSION) === '1') { unlockApp(); } else { showLogin(); }
+        if (sessionStorage.getItem(SS_SESSION) === '1') { unlockApp(); } else { showLogin('back'); }
         return true;
       }
       showGate(isActivation ? 'error' : 'offline-locked');
@@ -154,34 +177,71 @@
     verify(key, { activating: true });
   }
 
-  // --- الدخول والخروج ---
-  function tryLogin() {
+  // --- الدخول: كلمة المرور بتتحقق من السيرفر (مش مخزنة في الكود) ---
+  async function tryLogin() {
     const pass = loginPass.value.trim();
     if (!pass) { loginHint.textContent = 'اكتب كلمة المرور الأول'; return; }
-    if (pass === LOGIN_PASSWORD) {
+
+    loginBtn.disabled = true;
+    loginBtn.textContent = 'جاري التحقق...';
+
+    let serverOk = false;
+    let offlineOk = false;
+    let reachable = true;
+
+    try {
+      const res = await fetch(LICENSE_API, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'verifyLogin', password: pass })
+      });
+      const data = await res.json();
+      serverOk = !!(data && data.valid === true);
+    } catch (e) {
+      reachable = false;
+    }
+
+    // أوفلاين: مقارنة ببصمة آخر دخول ناجح على الجهاز ده
+    if (!reachable) {
+      const savedHash = localStorage.getItem(LS_PHASH);
+      if (savedHash && savedHash === hash32(pass + '|' + getDeviceFp())) {
+        offlineOk = true;
+      }
+    }
+
+    loginBtn.disabled = false;
+    loginBtn.textContent = 'دخول';
+
+    if (serverOk) {
+      localStorage.setItem(LS_PHASH, hash32(pass + '|' + getDeviceFp()));
       sessionStorage.setItem(SS_SESSION, '1');
       unlockApp();
+    } else if (offlineOk) {
+      sessionStorage.setItem(SS_SESSION, '1');
+      unlockApp();
+      updateChip('وضع أوفلاين — تم الدخول من الذاكرة المحلية');
     } else {
-      loginHint.textContent = 'كلمة المرور غير صحيحة';
-      loginBox.classList.remove('shake');
-      void loginBox.offsetWidth;
-      loginBox.classList.add('shake');
+      loginHint.textContent = reachable
+        ? 'كلمة المرور غير صحيحة'
+        : 'لا يوجد اتصال — ولم يتم تسجيل دخول ناجح قبل كده على الجهاز ده';
+      shakeLogin();
     }
   }
 
+  // --- الخروج ---
   function requestLogout() {
-    logoutModal.hidden = false;
+    if (logoutModal) logoutModal.hidden = false;
   }
 
   function closeLogoutModal() {
-    logoutModal.hidden = true;
+    if (logoutModal) logoutModal.hidden = true;
   }
 
   function confirmLogout() {
     sessionStorage.removeItem(SS_SESSION);
     logoutBtn.hidden = true;
     closeLogoutModal();
-    showLogin();
+    showLogin('loggedout');
   }
 
   function scheduleRecheck() {
@@ -201,6 +261,7 @@
     gateHint = $('gateHint');
     licChip = $('licChip');
     loginBox = $('loginBox');
+    loginMsg = $('loginMsg');
     loginPass = $('loginPass');
     loginBtn = $('loginBtn');
     loginHint = $('loginHint');
@@ -208,21 +269,21 @@
     logoutModal = $('logoutModal');
     if (!gate) return;
 
-    openGate(); // البوابة ظاهرة افتراضياً في HTML — نقفل سكرول الخلفية من البداية
+    openGate();
 
-    $('gateContact').addEventListener('click', (e) => {
+    bind('gateContact', 'click', (e) => {
       e.preventDefault();
       window.open('https://axentro.site/links.html', '_blank');
     });
-    gateBtn.addEventListener('click', activate);
-    gateKey.addEventListener('keydown', (e) => { if (e.key === 'Enter') activate(); });
+    bind('gateBtn', 'click', activate);
+    bind('gateKey', 'keydown', (e) => { if (e.key === 'Enter') activate(); });
 
-    loginBtn.addEventListener('click', tryLogin);
-    loginPass.addEventListener('keydown', (e) => { if (e.key === 'Enter') tryLogin(); });
+    bind('loginBtn', 'click', tryLogin);
+    bind('loginPass', 'keydown', (e) => { if (e.key === 'Enter') tryLogin(); });
 
-    logoutBtn.addEventListener('click', requestLogout);
-    $('logoutYes').addEventListener('click', confirmLogout);
-    $('logoutNo').addEventListener('click', closeLogoutModal);
+    bind('logoutBtn', 'click', requestLogout);
+    bind('logoutYes', 'click', confirmLogout);
+    bind('logoutNo', 'click', closeLogoutModal);
 
     const savedKey = localStorage.getItem(LS_KEY);
     if (savedKey) {
@@ -231,7 +292,6 @@
       showGate('activate');
     }
 
-    // أول ما النت يرجع → تحقق فوري
     window.addEventListener('online', () => {
       const k = localStorage.getItem(LS_KEY);
       if (k) verify(k);
