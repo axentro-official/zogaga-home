@@ -79,3 +79,9 @@ body.gate-open{overflow:hidden}
 @keyframes pop{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 
 .scan-me{font-size:.72rem;color:var(--muted);font-weight:700;letter-spacing:1px;margin-top:6px}
+/* ===== شاشة انتهاء الاشتراك ===== */
+.expired-overlay{z-index:11000}
+.expired-icon{font-size:3rem;margin-top:4px}
+.expired-msg{background:rgba(26,127,55,.12);border-color:rgba(26,127,55,.35)}
+.expired-countdown{font-size:.85rem;color:var(--muted);margin:10px 0 2px;min-height:20px}
+.expired-countdown strong{color:#e67e22}
