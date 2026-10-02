@@ -1,9 +1,10 @@
 /* ============================================
-   ZOGAGA HOME - License Gate + Login v1.3
+   ZOGAGA HOME - License Gate + Login v1.4
    - تحقق ذكي: فحص كامل كل 12 ساعة فقط، والباقي من الذاكرة (بدون نت)
    - إعادة محاولة تلقائية عند فشل السيرفر
    - جلسة دائمة (تستحمل أي Refresh) + قفل تلقائي بعد 30 دقيقة عدم نشاط
    - تفعيل بمفتاح + قفل جهاز + سماح أوفلاين 72 ساعة
+   - شاشة انتهاء اشتراك احترافية: تطمين + عد تنازلي + تفعيل مفتاح جديد يفتح من نفس النقطة
    ============================================ */
 
 (function () {
@@ -20,7 +21,7 @@
   const LS_KEY = 'zg_license_key';
   const LS_FP = 'zg_device_fp';
   const LS_LAST = 'zg_last_check';
-  const LS_STATUS = 'zg_last_status';   // نص آخر حالة ناجحة (نص الشريحة + هل مدى الحياة)
+  const LS_STATUS = 'zg_last_status';   // نص آخر حالة ناجحة (نص الشريحة)
   const LS_PHASH = 'zg_pass_hash';      // بصمة كلمة المرور من آخر دخول ناجح (للأوفلاين فقط)
   const LS_SESSION = 'zg_session';      // الجلسة في localStorage — بتستحمل أي Refresh
 
@@ -28,6 +29,7 @@
   let loginBox, loginMsg, loginPass, loginBtn, loginHint;
   let logoutBtn, logoutModal;
   let expiredOverlay, expiredWhen, expiredCountdown, expiredKey, expiredActivate, expiredHint, countdownTimer;
+  let expiredAtMs = 0;
   let sessionActive = false;
   let idleTimer = null;
   let isFetching = false;
@@ -64,13 +66,19 @@
     return fp;
   }
 
-     function fmtDays(ms) {
+  function fmtDays(ms) {
     return Math.max(0, Math.ceil(ms / 86400000));
   }
 
-  function showExpired() {
-    const last = Number(localStorage.getItem(LS_LAST) || 0);
-    const expiredAt = last ? new Date(last) : null;
+  // --- شاشة انتهاء الاشتراك ---
+  function showExpired(endsIso) {
+    let expiredAt = null;
+    if (endsIso) { try { expiredAt = new Date(endsIso); } catch (e) {} }
+    if (!expiredAt || isNaN(expiredAt.getTime())) {
+      const last = Number(localStorage.getItem(LS_LAST) || 0);
+      expiredAt = last ? new Date(last) : null;
+    }
+    expiredAtMs = expiredAt ? expiredAt.getTime() : 0;
     if (expiredWhen && expiredAt) {
       expiredWhen.textContent = 'انتهى في: ' + expiredAt.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' });
     }
@@ -91,9 +99,8 @@
   function startCountdown() {
     if (countdownTimer) return;
     const tick = () => {
-      const last = Number(localStorage.getItem(LS_LAST) || 0);
-      if (!last) { if (expiredCountdown) expiredCountdown.textContent = ''; return; }
-      const since = Date.now() - last;
+      if (!expiredAtMs) { if (expiredCountdown) expiredCountdown.textContent = ''; return; }
+      const since = Date.now() - expiredAtMs;
       if (expiredCountdown) {
         expiredCountdown.innerHTML = '⏰ انتهى اشتراكك من <strong>' + fmtDays(since) + ' يوم</strong>';
       }
@@ -102,7 +109,6 @@
     countdownTimer = setInterval(tick, 60000);
   }
 
-   
   const GATE_MESSAGES = {
     activate: 'هذا البرنامج خدمة اشتراك شهرية بقيمة <strong>19.99$</strong>.<br>للحصول على مفتاح التفعيل، تواصل مع الإدارة.',
     expired: '<strong>انتهى اشتراك البرنامج.</strong><br>للتجديد والحصول على مفتاح جديد، تواصل مع الإدارة.',
@@ -128,6 +134,7 @@
   function showGate(mode, extraText) {
     licenseBox.hidden = false;
     loginBox.hidden = true;
+    hideExpired();
     openGate();
     gateMsg.innerHTML = GATE_MESSAGES[mode] || GATE_MESSAGES.activate;
     gateHint.textContent = extraText || (mode === 'activate' ? 'أدخل المفتاح اللي وصلك على بريدك الإلكتروني' : '');
@@ -138,6 +145,7 @@
   function showLogin(mode) {
     licenseBox.hidden = true;
     loginBox.hidden = false;
+    hideExpired();
     openGate();
     loginMsg.innerHTML = LOGIN_MSGS[mode] || LOGIN_MSGS.back;
     loginPass.value = '';
@@ -148,6 +156,7 @@
   function unlockApp() {
     sessionActive = true;
     gate.hidden = true;
+    hideExpired();
     document.body.classList.remove('gate-open');
     logoutBtn.hidden = false;
     resetIdle();
@@ -253,9 +262,8 @@
         return true;
       }
 
-        if (data && data.status === 'expired') {
-        hideExpired();
-        showExpired();
+      if (data && data.status === 'expired') {
+        showExpired(data.ends);
         return false;
       }
       if (data && data.status === 'suspended') { showGate('suspended'); return false; }
@@ -269,11 +277,44 @@
         applyCachedState();
         return true;
       }
-      showGate(isActivation ? 'error' : 'error');
+      showGate('error');
       return false;
     } finally {
       isFetching = false;
       if (isActivation) { gateBtn.disabled = false; gateBtn.textContent = 'تفعيل البرنامج'; }
+    }
+  }
+
+  // --- تفعيل مفتاح جديد من شاشة الانتهاء ---
+  async function verifyForRenewal(key) {
+    const url = LICENSE_API + '?key=' + encodeURIComponent(key) + '&fp=' + encodeURIComponent(getDeviceFp());
+    try {
+      const res = await fetchWithRetry(url);
+      const data = await res.json();
+
+      if (data && data.status === 'active') {
+        localStorage.setItem(LS_KEY, key);
+        saveSuccessState(data);
+        scheduleRecheck();
+        hideExpired();
+        // الجلسة القديمة لسه شغالة؟ يفتح البرنامج من نفس النقطة على طول
+        if (localStorage.getItem(LS_SESSION) === '1') {
+          unlockApp();
+        } else {
+          showLogin('back');
+        }
+        return true;
+      }
+
+      if (data && data.status === 'expired') { if (expiredHint) expiredHint.textContent = 'هذا المفتاح منتهي كمان — اتأكد إنه المفتاح الجديد'; return false; }
+      if (data && data.status === 'suspended') { if (expiredHint) expiredHint.textContent = 'هذا المفتاح موقوف من الإدارة'; return false; }
+      if (data && data.status === 'locked') { if (expiredHint) expiredHint.textContent = 'هذا المفتاح مرتبط بجهاز آخر'; return false; }
+      if (expiredHint) expiredHint.textContent = 'المفتاح غير صحيح — تأكد من كتابته بالظبط';
+      return false;
+
+    } catch (e) {
+      if (expiredHint) expiredHint.textContent = 'تعذر الاتصال بالخادم — اتأكد من الإنترنت وحاول تاني';
+      return false;
     }
   }
 
@@ -406,16 +447,13 @@
     bind('logoutBtn', 'click', requestLogout);
     bind('logoutYes', 'click', confirmLogout);
     bind('logoutNo', 'click', closeLogoutModal);
-      bind('expiredActivate', 'click', async () => {
+
+    bind('expiredActivate', 'click', async () => {
       const key = (expiredKey ? expiredKey.value : '').trim().toUpperCase();
       if (!key) { if (expiredHint) expiredHint.textContent = 'اكتب مفتاح الترخيص الجديد الأول'; return; }
       if (expiredActivate) { expiredActivate.disabled = true; expiredActivate.textContent = 'جاري التحقق...'; }
-      const ok = await verifyForRenewal(key);
+      await verifyForRenewal(key);
       if (expiredActivate) { expiredActivate.disabled = false; expiredActivate.textContent = 'تفعيل الاشتراك الجديد'; }
-      if (ok) {
-        hideExpired();
-        showLogin('back');
-      }
     });
     bind('expiredKey', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (expiredActivate) expiredActivate.click(); } });
     bind('expiredContact', 'click', (e) => {
