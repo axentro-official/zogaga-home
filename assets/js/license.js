@@ -1,10 +1,11 @@
 /* ============================================
-   ZOGAGA HOME - License Gate + Login v1.4
+   ZOGAGA HOME - License Gate + Login v1.5
    - تحقق ذكي: فحص كامل كل 12 ساعة فقط، والباقي من الذاكرة (بدون نت)
    - إعادة محاولة تلقائية عند فشل السيرفر
    - جلسة دائمة (تستحمل أي Refresh) + قفل تلقائي بعد 30 دقيقة عدم نشاط
    - تفعيل بمفتاح + قفل جهاز + سماح أوفلاين 72 ساعة
-   - شاشة انتهاء اشتراك احترافية: تطمين + عد تنازلي + تفعيل مفتاح جديد يفتح من نفس النقطة
+   - شاشة انتهاء اشتراك احترافية: تظهر فورًا من الذاكرة (بدون وميض) + عد تنازلي
+     + فحص صامت في الخلفية → لو اتجدد أو الإدارة عدلت التاريخ، يرجع يفتح لوحده
    ============================================ */
 
 (function () {
@@ -24,6 +25,7 @@
   const LS_STATUS = 'zg_last_status';   // نص آخر حالة ناجحة (نص الشريحة)
   const LS_PHASH = 'zg_pass_hash';      // بصمة كلمة المرور من آخر دخول ناجح (للأوفلاين فقط)
   const LS_SESSION = 'zg_session';      // الجلسة في localStorage — بتستحمل أي Refresh
+  const LS_EXPIRED = 'zg_expired';      // تاريخ انتهاء معروف من فحص سابق (عشان الشاشة تظهر فورًا)
 
   let gate, licenseBox, gateMsg, gateKey, gateBtn, gateHint, licChip;
   let loginBox, loginMsg, loginPass, loginBtn, loginHint;
@@ -254,15 +256,18 @@
       const data = await res.json();
 
       if (data && data.status === 'active') {
+        localStorage.removeItem(LS_EXPIRED);
         localStorage.setItem(LS_KEY, key);
         saveSuccessState(data);
         scheduleRecheck();
+        // لو كنا عارفينه منتهي واتصلح — نطفي شاشة الانتهاء ونفتح عادي
         if (localStorage.getItem(LS_SESSION) === '1') { unlockApp(); }
         else { showLogin(isActivation ? 'activated' : 'back'); }
         return true;
       }
 
       if (data && data.status === 'expired') {
+        localStorage.setItem(LS_EXPIRED, String(data.ends || ''));
         showExpired(data.ends);
         return false;
       }
@@ -293,6 +298,7 @@
       const data = await res.json();
 
       if (data && data.status === 'active') {
+        localStorage.removeItem(LS_EXPIRED);
         localStorage.setItem(LS_KEY, key);
         saveSuccessState(data);
         scheduleRecheck();
@@ -327,6 +333,14 @@
   // --- فحص ذكي عند فتح البرنامج ---
   function bootVerify(key) {
     const last = Number(localStorage.getItem(LS_LAST) || 0);
+    // عارفين من فحص سابق إن الترخيص منتهي؟ شاشة الانتهاء فورًا (بدون وميض)
+    // + فحص صامت في الخلفية: لو الإدارة عدلت التاريخ أو اتجدد → يرجع يفتح لوحده
+    const knownExpired = localStorage.getItem(LS_EXPIRED);
+    if (knownExpired) {
+      showExpired(knownExpired);
+      verify(key);
+      return;
+    }
     // آخر تحقق حديث؟ نفتح فورًا من غير نت خالص
     if (last && (Date.now() - last) < CHECK_INTERVAL_MS) {
       applyCachedState();
