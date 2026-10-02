@@ -27,6 +27,7 @@
   let gate, licenseBox, gateMsg, gateKey, gateBtn, gateHint, licChip;
   let loginBox, loginMsg, loginPass, loginBtn, loginHint;
   let logoutBtn, logoutModal;
+  let expiredOverlay, expiredWhen, expiredCountdown, expiredKey, expiredActivate, expiredHint, countdownTimer;
   let sessionActive = false;
   let idleTimer = null;
   let isFetching = false;
@@ -63,6 +64,45 @@
     return fp;
   }
 
+     function fmtDays(ms) {
+    return Math.max(0, Math.ceil(ms / 86400000));
+  }
+
+  function showExpired() {
+    const last = Number(localStorage.getItem(LS_LAST) || 0);
+    const expiredAt = last ? new Date(last) : null;
+    if (expiredWhen && expiredAt) {
+      expiredWhen.textContent = 'انتهى في: ' + expiredAt.toLocaleDateString('ar-EG', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+    if (expiredKey) expiredKey.value = '';
+    if (expiredHint) expiredHint.textContent = '';
+    licenseBox.hidden = true;
+    loginBox.hidden = true;
+    if (expiredOverlay) expiredOverlay.hidden = false;
+    document.body.classList.add('gate-open');
+    startCountdown();
+  }
+
+  function hideExpired() {
+    if (expiredOverlay) expiredOverlay.hidden = true;
+    if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null; }
+  }
+
+  function startCountdown() {
+    if (countdownTimer) return;
+    const tick = () => {
+      const last = Number(localStorage.getItem(LS_LAST) || 0);
+      if (!last) { if (expiredCountdown) expiredCountdown.textContent = ''; return; }
+      const since = Date.now() - last;
+      if (expiredCountdown) {
+        expiredCountdown.innerHTML = '⏰ انتهى اشتراكك من <strong>' + fmtDays(since) + ' يوم</strong>';
+      }
+    };
+    tick();
+    countdownTimer = setInterval(tick, 60000);
+  }
+
+   
   const GATE_MESSAGES = {
     activate: 'هذا البرنامج خدمة اشتراك شهرية بقيمة <strong>19.99$</strong>.<br>للحصول على مفتاح التفعيل، تواصل مع الإدارة.',
     expired: '<strong>انتهى اشتراك البرنامج.</strong><br>للتجديد والحصول على مفتاح جديد، تواصل مع الإدارة.',
@@ -213,7 +253,11 @@
         return true;
       }
 
-      if (data && data.status === 'expired') { showGate('expired', isActivation ? 'هذا المفتاح انتهت مدته.' : ''); return false; }
+        if (data && data.status === 'expired') {
+        hideExpired();
+        showExpired();
+        return false;
+      }
       if (data && data.status === 'suspended') { showGate('suspended'); return false; }
       if (data && data.status === 'locked') { showGate('locked', data.message || ''); return false; }
       showGate('invalid'); return false;
@@ -339,6 +383,12 @@
     loginHint = $('loginHint');
     logoutBtn = $('logoutBtn');
     logoutModal = $('logoutModal');
+    expiredOverlay = $('expiredOverlay');
+    expiredWhen = $('expiredWhen');
+    expiredCountdown = $('expiredCountdown');
+    expiredKey = $('expiredKey');
+    expiredActivate = $('expiredActivate');
+    expiredHint = $('expiredHint');
     if (!gate) return;
 
     openGate();
@@ -356,6 +406,22 @@
     bind('logoutBtn', 'click', requestLogout);
     bind('logoutYes', 'click', confirmLogout);
     bind('logoutNo', 'click', closeLogoutModal);
+      bind('expiredActivate', 'click', async () => {
+      const key = (expiredKey ? expiredKey.value : '').trim().toUpperCase();
+      if (!key) { if (expiredHint) expiredHint.textContent = 'اكتب مفتاح الترخيص الجديد الأول'; return; }
+      if (expiredActivate) { expiredActivate.disabled = true; expiredActivate.textContent = 'جاري التحقق...'; }
+      const ok = await verifyForRenewal(key);
+      if (expiredActivate) { expiredActivate.disabled = false; expiredActivate.textContent = 'تفعيل الاشتراك الجديد'; }
+      if (ok) {
+        hideExpired();
+        showLogin('back');
+      }
+    });
+    bind('expiredKey', 'keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); if (expiredActivate) expiredActivate.click(); } });
+    bind('expiredContact', 'click', (e) => {
+      e.preventDefault();
+      window.open('https://axentro.site/links.html', '_blank');
+    });
 
     const savedKey = localStorage.getItem(LS_KEY);
     if (savedKey) {
