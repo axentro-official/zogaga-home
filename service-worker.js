@@ -1,10 +1,11 @@
-const CACHE_VERSION = 'zogaga-v0.2.7';
+const CACHE_VERSION = 'zogaga-v0.2.9';
 const PRECACHE_URLS = [
   './', './index.html', './manifest.json', './favicon.svg',
   './assets/css/style.css', './assets/js/license.js',
   './assets/images/logo.png', './assets/images/logo-print.png',
   './assets/images/logo-192.png', './assets/images/logo-512.png',
   './assets/images/qr.png'
+  './assets/js/db.js',
 ];
 
 self.addEventListener('install', (event) => {
