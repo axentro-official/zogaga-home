@@ -495,6 +495,7 @@
     if (curLine.unit_price <= 0) { $('purHint').textContent = 'اكتب سعر الشراء'; return; }
     $('purHint').textContent = '';
     curLine.qty_text = qtyText(curLine);
+    curLine.line_total = lineTotal(curLine);
     inv.lines.push(JSON.parse(JSON.stringify(curLine)));
     curLine = null;
     $('lnSearch').value = '';
