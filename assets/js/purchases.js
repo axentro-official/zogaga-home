@@ -1,5 +1,5 @@
 /* ============================================
-   ZOGAGA HOME - فواتير الشراء v1.0
+   ZOGAGA HOME - فواتير الشراء v1.1
    - رقم تلقائي PUR-YYYY-00001 (لا يتكرر أبدًا)
    - المورد اختياري: يُكتب أو يُختار، ويُحفظ تلقائيًا في الموردين
    - خطوط أصناف: بحث ذكي (موجود يتأثر / جديد يتولد من الفاتورة)
@@ -194,7 +194,7 @@
     const box = document.createElement('div');
     box.className = 'line-editor';
     box.innerHTML =
-      '<label class="f-label">ابحث عن صنف موجود — أو اكتب اسم صنف جديد واضغط «جديد»</label>' +
+      '<label class="f-label">ابحث عن صنف موجود — أو اكتب اسم صنف جديد</label>' +
       '<div class="search-wrap"><input id="lnSearch" class="search-input" placeholder="اكتب أول حرفين..." autocomplete="off">' +
       '<div id="lnDrop" class="ln-drop" hidden></div></div>' +
       '<div id="lnFields"></div>';
@@ -279,7 +279,7 @@
     info.className = 'ln-head';
     info.innerHTML = '<b>' + esc(curLine.name) + '</b> ' +
       (curLine.existing_id ? '<span class="sku-chip">' + esc(curLine.sku) + '</span> <span class="item-syn">صنف موجود — هيضاف عليه</span>'
-                           : '<span class="sku-chip new">صنف جديد — هيتولد مع الحفظ</span>');
+                           : '<span class="sku-chip">صنف جديد — هيتولد مع الحفظ</span>');
     box.appendChild(info);
 
     if (curLine.is_new) {
@@ -392,15 +392,15 @@
     if (!curLine) return;
     const pieces = syncLineFromUI();
     if (refillPrice === true) {
-      const all = null;
       DB.get('items', curLine.existing_id).then((it) => {
         if (it) { curLine.unit_price = curLine.buy_type === 'wholesale' ? (it.buy_wholesale || 0) : (it.buy_retail || 0); $('ql_price').value = curLine.unit_price; updateLineLive(); }
       });
       return;
     }
+    const gross = pieces * toNum(curLine.unit_price);
     const t = lineTotal(curLine);
-    $('lnLive').innerHTML = 'الكمية: <b>' + pieces + ' قطعة</b> × ' + r2(curLine.unit_price) + ' ج = <b>' + r2(pieces * toNum(curLine.unit_price)) + ' ج</b>' +
-      (toNum(curLine.disc_value) > 0 ? ' − خصم ' + r2(pieces * toNum(curLine.unit_price) - t) + ' ج' : '') +
+    $('lnLive').innerHTML = 'الكمية: <b>' + pieces + ' قطعة</b> × ' + r2(curLine.unit_price) + ' ج = <b>' + r2(gross) + ' ج</b>' +
+      (gross - t > 0 ? ' − خصم ' + r2(gross - t) + ' ج' : '') +
       ' ← <b>' + r2(t) + ' ج</b>';
   }
 
@@ -529,30 +529,6 @@
       btn.disabled = false;
     }
   }
-      // حفظ بيانات المورد تلقائيًا لو جديد
-      if (inv.supplier_name.trim()) {
-        const sups = await DB.all('suppliers');
-        const hit = sups.find((s) => normAr(s.name) === normAr(inv.supplier_name));
-        if (!hit) {
-          await DB.add('suppliers', { name: inv.supplier_name.trim(), phone: inv.supplier_phone || '', notes: 'أُضيف من فاتورة ' + inv.number, created_at: Date.now() });
-          await DB.log('supplier_add', inv.supplier_name.trim() + ' (من فاتورة)');
-        }
-      }
-
-      // حفظ قطع كل سطر (اتحسبت وقت الحفظ قبل تعديل الأسعار)
-      inv.lines.forEach((l) => { l.pieces_saved = l.pieces_saved || linePieces(l); });
-      inv.saved_at = Date.now();
-      await DB.add('purchases', inv);
-      await DB.log('purchase_save', inv.number + ' — إجمالي ' + inv.total_after + ' ج');
-
-      $('purBody').replaceChildren();
-      $('purBody').appendChild(renderSavedView(inv));
-    } catch (e) {
-      $('purHint').textContent = 'حصل خطأ في الحفظ: ' + (e && e.message ? e.message : 'جرب تاني');
-    } finally {
-      btn.disabled = false;
-    }
-  }
 
   async function nextSkuFor() {
     const all = await DB.all('items');
@@ -560,9 +536,6 @@
     all.forEach((it) => { const m = /^ZG-(\d+)$/.exec(it.sku || ''); if (m) max = Math.max(max, parseInt(m[1], 10)); });
     return 'ZG-' + String(max + 1).padStart(4, '0');
   }
-
-  // حفظ القطع لكل سطر قبل لفة الحفظ (تصحيح: نحسبها أولًا)
-  const _origSave = saveInvoice;
 
   // ===== عرض الفاتورة المحفوظة =====
   function renderSavedView(doc) {
@@ -594,7 +567,7 @@
     return '' +
       '<div class="inv ' + (isA4 ? 'inv-a4' : 'inv-th') + '">' +
       '<div class="inv-brand"><img src="assets/images/logo-print.png" alt=""><div class="inv-shop">زجاجه هوم<small>ZOGAGA HOME</small></div>' +
-      '<div class="inv-type">فاتورة شراء</div><div class="inv-no" id="bcTarget">' + esc(doc.number) + '</div></div>' +
+      '<div class="inv-type">فاتورة شراء</div><div class="inv-no">' + esc(doc.number) + '</div></div>' +
       '<svg class="inv-bc" id="invBcSvg"></svg>' +
       '<div class="inv-meta"><span>التاريخ: ' + esc(doc.date) + '</span>' +
       (doc.supplier_name ? '<span>المورد: ' + esc(doc.supplier_name) + (doc.supplier_phone ? ' — ' + esc(doc.supplier_phone) : '') + '</span>' : '<span>المورد: —</span>') + '</div>' +
