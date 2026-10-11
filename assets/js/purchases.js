@@ -469,6 +469,10 @@
       const t = invTotals();
       inv.total_before = t.before; inv.disc_value_final = t.disc; inv.total_after = t.after;
 
+      // لقطة الكميات — بتتحسب قبل أي حفظ عشان تثبت مع الفاتورة للأبد
+      inv.lines.forEach((l) => { l.pieces_saved = linePieces(l); });
+
+      // لفة الأصناف: الموجود يزيد مخزونه ويحدّث تكلفته — الجديد بيتولد
       for (let i = 0; i < inv.lines.length; i++) {
         const l = inv.lines[i];
         if (l.existing_id) {
@@ -503,6 +507,28 @@
         }
       }
 
+      // حفظ بيانات المورد تلقائيًا لو جديد
+      if (inv.supplier_name.trim()) {
+        const sups = await DB.all('suppliers');
+        const hit = sups.find((s) => normAr(s.name) === normAr(inv.supplier_name));
+        if (!hit) {
+          await DB.add('suppliers', { name: inv.supplier_name.trim(), phone: inv.supplier_phone || '', notes: 'أُضيف من فاتورة ' + inv.number, created_at: Date.now() });
+          await DB.log('supplier_add', inv.supplier_name.trim() + ' (من فاتورة)');
+        }
+      }
+
+      inv.saved_at = Date.now();
+      await DB.add('purchases', inv);
+      await DB.log('purchase_save', inv.number + ' — إجمالي ' + inv.total_after + ' ج');
+
+      $('purBody').replaceChildren();
+      $('purBody').appendChild(renderSavedView(inv));
+    } catch (e) {
+      $('purHint').textContent = 'حصل خطأ في الحفظ: ' + (e && e.message ? e.message : 'جرب تاني');
+    } finally {
+      btn.disabled = false;
+    }
+  }
       // حفظ بيانات المورد تلقائيًا لو جديد
       if (inv.supplier_name.trim()) {
         const sups = await DB.all('suppliers');
