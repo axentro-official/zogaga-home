@@ -55,21 +55,22 @@
     <div class="topbar-left">
       <span id="licChip" class="lic-chip" hidden></span>
       <button id="logoutBtn" class="btn-logout" type="button" hidden>🚪 خروج</button>
-      <span class="ver-chip">v0.4</span>
+      <span class="ver-chip">v0.5</span>
     </div>
   </header>
 
   <main id="appMain" class="app-main" hidden>
     <nav class="tabs">
-      <button class="tab active" type="button">📦 الأصناف</button>
+      <button class="tab active" type="button" data-view="items">📦 الأصناف</button>
+      <button class="tab" type="button" data-view="purchases">🧾 فواتير الشراء</button>
+      <button class="tab" type="button" data-view="suppliers">🚚 الموردين</button>
       <button class="tab" type="button" disabled>📊 لوحة التحكم — قريبًا</button>
-      <button id="installBtn" class="btn-install" type="button" hidden>📲 تثبيت البرنامج</button>
+      <button id="installBtn" class="btn-install" type="button" hidden>📲 تثبيت</button>
     </nav>
 
     <section id="view-items" class="view">
       <div class="view-head">
         <h2>الأصناف <span id="itemsCount" class="count-chip"></span></h2>
-        <button id="addItemBtn" class="btn-gold btn-head" type="button">➕ صنف جديد</button>
       </div>
       <div class="search-wrap">
         <input id="itemSearch" class="search-input" type="text" placeholder="ابحث بالاسم أو المرادف أو SKU أو الباركود..." autocomplete="off">
@@ -77,6 +78,32 @@
       </div>
       <div id="itemsList" class="items-list"></div>
       <div id="itemsEmpty" class="empty-state" hidden></div>
+    </section>
+
+    <section id="view-purchases" class="view" hidden>
+      <div class="view-head">
+        <h2>فواتير الشراء <span id="purCount" class="count-chip"></span></h2>
+        <button id="newPurchaseBtn" class="btn-gold btn-head" type="button">🧾 فاتورة شراء جديدة</button>
+      </div>
+      <div class="search-wrap">
+        <input id="purSearch" class="search-input" type="text" placeholder="ابحث برقم الفاتورة أو اسم المورد..." autocomplete="off">
+        <button id="purClear" class="search-clear" type="button" hidden>✕</button>
+      </div>
+      <div id="purList" class="items-list"></div>
+      <div id="purEmpty" class="empty-state" hidden></div>
+    </section>
+
+    <section id="view-suppliers" class="view" hidden>
+      <div class="view-head">
+        <h2>الموردين <span id="supCount" class="count-chip"></span></h2>
+        <button id="addSupBtn" class="btn-gold btn-head" type="button">➕ مورد جديد</button>
+      </div>
+      <div class="search-wrap">
+        <input id="supSearch" class="search-input" type="text" placeholder="ابحث باسم المورد أو رقمه..." autocomplete="off">
+        <button id="supClear" class="search-clear" type="button" hidden>✕</button>
+      </div>
+      <div id="supList" class="items-list"></div>
+      <div id="supEmpty" class="empty-state" hidden></div>
     </section>
   </main>
 
@@ -127,10 +154,10 @@
     </div>
   </div>
 
-    <!-- نافذة صنف جديد / تعديل -->
+  <!-- نافذة تعديل صنف -->
   <div id="itemModal" class="modal" hidden>
     <div class="modal-card modal-lg">
-      <h3 id="itemModalTitle" class="modal-title">صنف جديد</h3>
+      <h3 id="itemModalTitle" class="modal-title">تعديل صنف</h3>
       <form id="itemForm" autocomplete="off">
         <label class="f-label">اسم الصنف *</label>
         <input id="f_name" class="f-input" type="text" required>
@@ -220,10 +247,63 @@
     </div>
   </div>
 
+  <!-- نافذة مورد جديد / تعديل -->
+  <div id="supModal" class="modal" hidden>
+    <div class="modal-card">
+      <h3 id="supModalTitle" class="modal-title">مورد جديد</h3>
+      <form id="supForm" autocomplete="off">
+        <label class="f-label">اسم المورد / التاجر *</label>
+        <input id="s_name" class="f-input" type="text" required>
+        <label class="f-label">رقم التليفون</label>
+        <input id="s_phone" class="f-input" type="tel" inputmode="tel" placeholder="مثال: 01123456789">
+        <label class="f-label">ملاحظات</label>
+        <input id="s_notes" class="f-input" type="text" placeholder="اختياري — مثال: بائع الكوبايات في السوق">
+        <p id="s_hint" class="gate-hint"></p>
+        <div class="modal-actions">
+          <button type="submit" id="supSaveBtn" class="btn-save">💾 حفظ</button>
+          <button type="button" id="supCancelBtn" class="btn-cancel">إلغاء</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- تأكيد حذف مورد -->
+  <div id="supConfirmModal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-icon">🗑️</div>
+      <h3 class="modal-title">تأكيد الحذف</h3>
+      <p id="supConfirmText" class="modal-text"></p>
+      <div class="modal-actions">
+        <button id="supConfirmYes" class="btn-danger" type="button">نعم، احذف</button>
+        <button id="supConfirmNo" class="btn-cancel" type="button">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- فاتورة الشراء -->
+  <div id="purModal" class="modal" hidden>
+    <div class="modal-card modal-lg"><div id="purBody"></div></div>
+  </div>
+
+  <!-- تأكيد حذف فاتورة شراء -->
+  <div id="purConfirmModal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-icon">⚠️</div>
+      <h3 class="modal-title">تأكيد حذف الفاتورة</h3>
+      <p id="purConfirmText" class="modal-text"></p>
+      <div class="modal-actions">
+        <button id="purConfirmYes" class="btn-danger" type="button">نعم، احذف</button>
+        <button id="purConfirmNo" class="btn-cancel" type="button">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
   <script src="assets/js/db.js"></script>
   <script src="assets/js/jsbarcode.all.min.js"></script>
   <script src="assets/js/license.js"></script>
   <script src="assets/js/items.js"></script>
+  <script src="assets/js/suppliers.js"></script>
+  <script src="assets/js/purchases.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
