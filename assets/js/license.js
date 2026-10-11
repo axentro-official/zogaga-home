@@ -162,6 +162,7 @@
     document.body.classList.remove('gate-open');
     logoutBtn.hidden = false;
     resetIdle();
+    if (typeof window.ZG_onUnlock === 'function') window.ZG_onUnlock();
   }
 
   function lockApp(mode) {
