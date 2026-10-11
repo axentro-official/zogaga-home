@@ -127,3 +127,7 @@ body.gate-open{overflow:hidden}
 .barcode-num{font-size:.8rem;color:#333;font-weight:700;direction:ltr}
 .btn-save{flex:1;background:linear-gradient(180deg,var(--gold),var(--gold-2));color:#221708;border:none;padding:12px;border-radius:10px;font-weight:800;cursor:pointer;font-size:.95rem}
 @media (max-width:520px){ .f-row{grid-template-columns:1fr} }
+
+/* ===== باركود في كارت الصنف ===== */
+.item-bc{background:#fff;border-radius:8px;padding:6px 10px;display:inline-block;max-width:220px}
+.item-meta .buy-line{color:#B9A88F}
