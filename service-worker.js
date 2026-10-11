@@ -1,11 +1,13 @@
-const CACHE_VERSION = 'zogaga-v0.4.2';
+const CACHE_VERSION = 'zogaga-v0.5.1';
 const PRECACHE_URLS = [
   './', './index.html', './manifest.json', './favicon.svg',
-  './assets/css/style.css', './assets/js/license.js', './assets/js/db.js',
+  './assets/css/style.css',
+  './assets/js/db.js', './assets/js/jsbarcode.all.min.js',
+  './assets/js/license.js', './assets/js/items.js',
+  './assets/js/suppliers.js', './assets/js/purchases.js',
   './assets/images/logo.png', './assets/images/logo-print.png',
   './assets/images/logo-192.png', './assets/images/logo-512.png',
   './assets/images/qr.png'
-  './assets/js/items.js', './assets/js/jsbarcode.all.min.js',
 ];
 
 self.addEventListener('install', (event) => {
