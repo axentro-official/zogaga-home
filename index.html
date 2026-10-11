@@ -127,7 +127,7 @@
     </div>
   </div>
 
-  <!-- نافذة صنف جديد / تعديل -->
+    <!-- نافذة صنف جديد / تعديل -->
   <div id="itemModal" class="modal" hidden>
     <div class="modal-card modal-lg">
       <h3 id="itemModalTitle" class="modal-title">صنف جديد</h3>
@@ -140,22 +140,44 @@
 
         <div class="f-row">
           <div class="f-col">
-            <label class="f-label">قطع في الشيالة</label>
+            <label class="f-label">اسم الوحدة الوسطى (اختياري)</label>
+            <input id="f_unit_mid" class="f-input" type="text" placeholder="مثال: شيالة — اتركه فاضي لو مفيش">
+          </div>
+          <div class="f-col">
+            <label class="f-label">اسم الوحدة الكبيرة (اختياري)</label>
+            <input id="f_unit_top" class="f-input" type="text" placeholder="مثال: كرتونة — اتركه فاضي لو مفيش">
+          </div>
+        </div>
+
+        <div class="f-row">
+          <div class="f-col">
+            <label class="f-label" id="lbl_sps">قطع في الوحدة الوسطى</label>
             <input id="f_sps" class="f-input" type="number" min="0" placeholder="مثال: 4">
           </div>
           <div class="f-col">
-            <label class="f-label">شيالات في الكرتونة</label>
+            <label class="f-label" id="lbl_spc">عدد الوحدة الوسطى في الكبيرة</label>
             <input id="f_spc" class="f-input" type="number" min="0" placeholder="مثال: 12">
           </div>
         </div>
 
         <div class="f-row">
           <div class="f-col">
-            <label class="f-label">سعر القطاعي (جنيه) *</label>
+            <label class="f-label">سعر شراء جملة — من التاجر</label>
+            <input id="f_buy_wholesale" class="f-input" type="number" min="0" step="0.25" placeholder="لو هشتري منه جملة">
+          </div>
+          <div class="f-col">
+            <label class="f-label">سعر شراء قطاعي — من التاجر</label>
+            <input id="f_buy_retail" class="f-input" type="number" min="0" step="0.25" placeholder="لو هشتري منه قطاعي">
+          </div>
+        </div>
+
+        <div class="f-row">
+          <div class="f-col">
+            <label class="f-label">سعر بيع قطاعي (جنيه) *</label>
             <input id="f_retail" class="f-input" type="number" min="0" step="0.25" required>
           </div>
           <div class="f-col">
-            <label class="f-label">سعر الجملة (جنيه)</label>
+            <label class="f-label">سعر بيع جملة (جنيه)</label>
             <input id="f_wholesale" class="f-input" type="number" min="0" step="0.25">
           </div>
         </div>
