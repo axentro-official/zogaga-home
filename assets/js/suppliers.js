@@ -1,6 +1,7 @@
 /* ============================================
-   ZOGAGA HOME - الموردين v1.0
-   - إضافة/تعديل/حذف مورد + بحث فوري
+   ZOGAGA HOME - الموردين v1.1
+   - عرض وتعديل وحذف — الإضافة بتتم من فواتير الشراء
+   - رقم التليفون رابط اتصال مباشر (tel:)
    - تابات التنقل بين الشاشات
    - كل حركة متسجلة في سجل التدقيق
    ============================================ */
@@ -56,7 +57,7 @@
     const empty = $('supEmpty');
     if (suppliers.length === 0) {
       empty.hidden = false;
-      empty.textContent = 'مفيش موردين لسه — هتضيفهم من زرار «➕ مورد جديد» أو مباشرة وقت أول فاتورة شراء.';
+      empty.textContent = 'مفيش موردين لسه — المورد بيتسجل تلقائيًا أول ما تكتب اسمه في فاتورة شراء.';
     } else if (filtered.length === 0) {
       empty.hidden = false;
       empty.textContent = 'مفيش نتايج للبحث ده.';
@@ -80,13 +81,13 @@
     if (s.phone) {
       const ph = document.createElement('div');
       ph.className = 'item-meta';
-      const span = document.createElement('span');
-      span.textContent = '📞 ';
-      const b = document.createElement('b');
-      b.style.direction = 'ltr';
-      b.textContent = s.phone;
-      span.appendChild(b);
-      ph.appendChild(span);
+      const a = document.createElement('a');
+      a.className = 'tel-link';
+      a.href = 'tel:' + String(s.phone).replace(/\s+/g, '');
+      a.style.direction = 'ltr';
+      a.textContent = '📞 ' + s.phone;
+      a.title = 'اضغط للاتصال';
+      ph.appendChild(a);
       card.appendChild(ph);
     }
 
@@ -114,13 +115,13 @@
     return card;
   }
 
-  // --- إضافة/تعديل ---
+  // --- تعديل ---
   function openModal(sup) {
-    editingId = sup ? sup.id : null;
-    $('supModalTitle').textContent = sup ? 'تعديل مورد' : 'مورد جديد';
-    $('s_name').value = sup ? sup.name : '';
-    $('s_phone').value = sup ? (sup.phone || '') : '';
-    $('s_notes').value = sup ? (sup.notes || '') : '';
+    editingId = sup.id;
+    $('supModalTitle').textContent = 'تعديل مورد — ' + sup.name;
+    $('s_name').value = sup.name;
+    $('s_phone').value = sup.phone || '';
+    $('s_notes').value = sup.notes || '';
     $('s_hint').textContent = '';
     $('supModal').hidden = false;
     setTimeout(() => { try { $('s_name').focus(); } catch (e) {} }, 60);
@@ -139,21 +140,15 @@
     const saveBtn = $('supSaveBtn');
     saveBtn.disabled = true;
     try {
-      const obj = {
+      const existing = suppliers.find((x) => x.id === editingId);
+      const obj = Object.assign({}, existing, {
         name: name,
         phone: $('s_phone').value.trim(),
         notes: $('s_notes').value.trim(),
         updated_at: Date.now()
-      };
-      if (editingId) {
-        const existing = suppliers.find((x) => x.id === editingId);
-        await DB.put('suppliers', Object.assign({}, existing, obj));
-        await DB.log('supplier_edit', name);
-      } else {
-        obj.created_at = Date.now();
-        await DB.add('suppliers', obj);
-        await DB.log('supplier_add', name);
-      }
+      });
+      await DB.put('suppliers', obj);
+      await DB.log('supplier_edit', name);
       closeModal();
       await loadSuppliers();
     } catch (err) {
