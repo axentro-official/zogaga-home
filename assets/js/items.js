@@ -1,9 +1,8 @@
 /* ============================================
-   ZOGAGA HOME - شاشة الأصناف v1.1
-   - SKU تلقائي ZG-0001 + باركود EAN-13 (يظهر في الكارت والفورم)
+   ZOGAGA HOME - شاشة الأصناف v1.2
+   عرض وتعديل وحذف فقط — الإضافة بتتم من فواتير الشراء
+   - 3 ألوان للمخزون: أحمر (خلص) / برتقالي (متوسط) / أخضر (متوفر)
    - بحث ذكي عربي: تطبيع + مرادفات + SKU + باركود
-   - وحدات تغليف بأسماء مرنة لكل صنف (قطعة → وسطى → كبيرة)
-   - 4 أسعار: شراء جملة/قطاعي + بيع جملة/قطاعي
    - كل حركة متسجلة في سجل التدقيق
    ============================================ */
 
@@ -54,17 +53,6 @@
     return out.join(' + ');
   }
 
-  // --- SKU والباركود ---
-  async function nextSku() {
-    const all = await DB.all('items');
-    let max = 0;
-    all.forEach((it) => {
-      const m = /^ZG-(\d+)$/.exec(it.sku || '');
-      if (m) max = Math.max(max, parseInt(m[1], 10));
-    });
-    return 'ZG-' + String(max + 1).padStart(4, '0');
-  }
-
   function barcodeForSku(sku) {
     const m = /^ZG-(\d+)$/.exec(sku || '');
     if (!m) return '';
@@ -109,7 +97,7 @@
     const empty = $('itemsEmpty');
     if (items.length === 0) {
       empty.hidden = false;
-      empty.textContent = 'مفيش أصناف لسه — ابدأ بأول صنف بزرار «➕ صنف جديد».';
+      empty.textContent = 'مفيش أصناف لسه — الأصناف بتتولد تلقائيًا أول ما تسجل أول فاتورة شراء.';
     } else if (filtered.length === 0) {
       empty.hidden = false;
       empty.textContent = 'مفيش نتايج للبحث ده.';
@@ -121,9 +109,12 @@
   function itemCard(it) {
     const card = document.createElement('div');
     card.className = 'item-card';
-    if ((it.min_stock || 0) > 0 && (it.stock_pieces || 0) <= it.min_stock) {
-      card.classList.add('low');
-    }
+
+    // ألوان المخزون: أحمر = خلص/عند الحد، برتقالي = متوسط، أخضر = متوفر
+    const st = it.stock_pieces || 0, mn = it.min_stock || 0;
+    if (st <= 0 || (mn > 0 && st <= mn)) card.classList.add('low');
+    else if (mn > 0 && st <= mn * 2) card.classList.add('mid');
+    else card.classList.add('ok');
 
     const top = document.createElement('div');
     top.className = 'item-top';
@@ -216,28 +207,27 @@
     $('lbl_spc').textContent = 'عدد ' + mid + ' في ' + top;
   }
 
-  // --- نافذة إضافة/تعديل ---
+  // --- نافذة تعديل الصنف ---
   async function openModal(item) {
-    editingId = item ? item.id : null;
-    $('itemModalTitle').textContent = item ? 'تعديل صنف' : 'صنف جديد';
+    editingId = item.id;
+    $('itemModalTitle').textContent = 'تعديل صنف — ' + item.name;
     $('f_hint').textContent = '';
-    $('f_name').value = item ? item.name : '';
-    $('f_synonyms').value = item ? (item.synonyms || []).join('، ') : '';
-    $('f_unit_mid').value = item ? (item.unit_mid !== undefined ? item.unit_mid : 'شيالة') : 'شيالة';
-    $('f_unit_top').value = item ? (item.unit_top !== undefined ? item.unit_top : 'كرتونة') : 'كرتونة';
-    $('f_sps').value = item && item.pieces_per_sheila ? item.pieces_per_sheila : '';
-    $('f_spc').value = item && item.sheilas_per_carton ? item.sheilas_per_carton : '';
-    $('f_buy_wholesale').value = item && item.buy_wholesale ? item.buy_wholesale : '';
-    $('f_buy_retail').value = item && item.buy_retail ? item.buy_retail : '';
-    $('f_retail').value = item ? item.price_retail : '';
-    $('f_wholesale').value = item && item.price_wholesale ? item.price_wholesale : '';
-    $('f_min').value = item && item.min_stock ? item.min_stock : '';
+    $('f_name').value = item.name;
+    $('f_synonyms').value = (item.synonyms || []).join('، ');
+    $('f_unit_mid').value = item.unit_mid || '';
+    $('f_unit_top').value = item.unit_top || '';
+    $('f_sps').value = item.pieces_per_sheila || '';
+    $('f_spc').value = item.sheilas_per_carton || '';
+    $('f_buy_wholesale').value = item.buy_wholesale || '';
+    $('f_buy_retail').value = item.buy_retail || '';
+    $('f_retail').value = item.price_retail;
+    $('f_wholesale').value = item.price_wholesale || '';
+    $('f_min').value = item.min_stock || '';
     updateUnitLabels();
 
-    const sku = item ? item.sku : await nextSku();
-    $('f_sku').value = sku;
+    $('f_sku').value = item.sku || '';
 
-    const code = item ? (item.barcode || barcodeForSku(sku)) : barcodeForSku(sku);
+    const code = item.barcode || barcodeForSku(item.sku);
     const box = $('barcodeBox');
     if (drawBarcode($('barcodeSvg'), code)) {
       $('barcodeNum').textContent = code;
@@ -267,7 +257,8 @@
     saveBtn.disabled = true;
 
     try {
-      const common = {
+      const existing = items.find((x) => x.id === editingId);
+      const obj = Object.assign({}, existing, {
         name: name,
         synonyms: $('f_synonyms').value.split(/[,،]/).map((s) => s.trim()).filter(Boolean),
         unit_mid: $('f_unit_mid').value.trim(),
@@ -280,25 +271,9 @@
         price_wholesale: toNum($('f_wholesale').value),
         min_stock: toNum($('f_min').value),
         updated_at: Date.now()
-      };
-
-      if (editingId) {
-        const existing = items.find((x) => x.id === editingId);
-        const obj = Object.assign({}, existing, common);
-        await DB.put('items', obj);
-        await DB.log('item_edit', (obj.sku || '') + ' — ' + obj.name);
-      } else {
-        const sku = $('f_sku').value;
-        const obj = Object.assign({}, common, {
-          sku: sku,
-          barcode: barcodeForSku(sku),
-          stock_pieces: 0,
-          cost_avg: 0,
-          created_at: Date.now()
-        });
-        await DB.add('items', obj);
-        await DB.log('item_add', sku + ' — ' + name);
-      }
+      });
+      await DB.put('items', obj);
+      await DB.log('item_edit', (obj.sku || '') + ' — ' + obj.name);
       closeModal();
       await loadItems();
     } catch (err) {
@@ -323,7 +298,6 @@
   function init() {
     if (!$('appMain')) return;
 
-    $('addItemBtn').addEventListener('click', () => openModal(null));
     $('itemCancelBtn').addEventListener('click', closeModal);
     $('itemForm').addEventListener('submit', saveItem);
     $('f_unit_mid').addEventListener('input', updateUnitLabels);
@@ -348,6 +322,8 @@
   window.ZG_onUnlock = function () {
     $('appMain').hidden = false;
     loadItems();
+    if (typeof window.ZG_loadSuppliers === 'function') window.ZG_loadSuppliers();
+    if (typeof window.ZG_loadPurchases === 'function') window.ZG_loadPurchases();
   };
 
   if (document.readyState === 'loading') {
