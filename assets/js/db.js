@@ -17,7 +17,7 @@ const DB = (function () {
     items: {
       keyPath: 'id', autoIncrement: true,
       indexes: [
-        { name: 'sku', keyPath: 'sku', unique: true },
+        { name: 'sku', keyPath: 'sku', unique: false },
         { name: 'barcode', keyPath: 'barcode', unique: false },
         { name: 'name', keyPath: 'name', unique: false }
       ]
@@ -34,15 +34,24 @@ const DB = (function () {
     if (dbPromise) return dbPromise;
     dbPromise = new Promise((resolve, reject) => {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
-      req.onupgradeneeded = (e) => {
+            req.onupgradeneeded = (e) => {
         const db = e.target.result;
+        const upgradeTx = e.target.transaction;
         Object.keys(STORES).forEach((name) => {
+          const def = STORES[name];
           if (!db.objectStoreNames.contains(name)) {
-            const def = STORES[name];
             const store = db.createObjectStore(name, { keyPath: def.keyPath, autoIncrement: def.autoIncrement });
             (def.indexes || []).forEach((idx) => {
               store.createIndex(idx.name, idx.keyPath, { unique: idx.unique });
             });
+          } else if (name === 'items' && e.oldVersion < 2) {
+            // ترقية v2: sku/barcode بقت غير فريدة — الفريد بيتضمن في كود التوليد
+            const store = upgradeTx.objectStore(name);
+            ['sku', 'barcode'].forEach((idxName) => {
+              if (store.indexNames.contains(idxName)) store.deleteIndex(idxName);
+            });
+            store.createIndex('sku', 'sku', { unique: false });
+            store.createIndex('barcode', 'barcode', { unique: false });
           }
         });
       };
