@@ -134,6 +134,18 @@ body.gate-open{overflow:hidden}
 .item-bc{background:#fff;border-radius:8px;padding:6px 10px;display:inline-block;max-width:220px}
 .item-meta .buy-line{color:#B9A88F}
 
+/* ===== إلغاء أسهم العداد (سهم طالع/نازل) من كل الخانات الرقمية ===== */
+input[type=number]::-webkit-outer-spin-button,
+input[type=number]::-webkit-inner-spin-button{-webkit-appearance:none;margin:0}
+input[type=number]{-moz-appearance:textfield;appearance:textfield}
+
+/* ===== رقم تليفون المورد — رابط اتصال ===== */
+a.tel-link{color:var(--gold);text-decoration:none;font-weight:800;letter-spacing:.5px}
+a.tel-link:hover{text-decoration:underline}
+
+/* ===== جملة إرشاد تحت خانات الكميات ===== */
+.qty-hint{font-size:.72rem;color:var(--muted);margin:6px 0 0;line-height:1.7}
+
 /* ===== فواتير الشراء ===== */
 .inv-head{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:10px}
 .inv-date-lbl{font-size:.75rem;color:var(--muted);margin:0 6px}
