@@ -652,10 +652,11 @@
   function invoiceHTML(doc, mode, previewOnly) {
     const t = { before: doc.total_before, disc: doc.disc_value_final || 0, after: doc.total_after };
     const isA4 = mode === 'a4';
-    const rows = doc.lines.map((l) => {
+        const rows = doc.lines.map((l) => {
       const qty = l.qty_text || ((l.pieces_saved || 0) + ' قطعة');
       const price = r2(l.unit_price) + (l.price_unit_name ? '/' + esc(l.price_unit_name) : '');
-      return '<tr><td>' + esc(l.name) + '</td><td>' + esc(qty) + '</td><td>' + price + '</td><td>' + r2(l.unit_price && l.pieces_saved ? r2((l.total_after && l.total_before && !previewOnly ? 0 : 0) || lineTotal(l)) : 0) + '</td></tr>';
+      const tot = l.pieces_saved && l.unit_price ? r2(l.pieces_saved * (l.cost_per_piece || (l.unit_price / 1))) : (l.total_line || 0);
+      return '<tr><td>' + esc(l.name) + '</td><td>' + esc(qty) + '</td><td>' + price + '</td><td>' + r2(l.line_total || tot) + '</td></tr>';
     }).join('');
     return '' +
       '<div class="inv ' + (isA4 ? 'inv-a4' : 'inv-th') + '">' +
