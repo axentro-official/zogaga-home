@@ -26,7 +26,7 @@
       btn.addEventListener('click', () => {
         document.querySelectorAll('.tab[data-view]').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
-        ['items', 'suppliers'].forEach((v) => {
+        ['items', 'suppliers', 'purchases'].forEach((v) => {
           const el = $('view-' + v);
           if (el) el.hidden = (v !== btn.dataset.view);
         });
