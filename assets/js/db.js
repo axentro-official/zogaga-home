@@ -1,14 +1,15 @@
 /* ============================================
-   ZOGAGA HOME - Local Database Layer v1.0
+   ZOGAGA HOME - Local Database Layer v1.2
    IndexedDB — سريع، أوفلاين دايمًا، مجاني
-   الخزانات: items, purchases, sales, expenses, advances, settings, audit
+   الخزانات: items, purchases, sales, expenses, advances,
+             suppliers, settings, audit
    ============================================ */
 
 const DB = (function () {
   'use strict';
 
   const DB_NAME = 'zogaga_db';
-  const DB_VERSION = 1;
+  const DB_VERSION = 3;
 
   let dbPromise = null;
 
@@ -22,6 +23,7 @@ const DB = (function () {
         { name: 'name', keyPath: 'name', unique: false }
       ]
     },
+    suppliers: { keyPath: 'id', autoIncrement: true, indexes: [{ name: 'name', keyPath: 'name', unique: false }] },
     purchases: { keyPath: 'id', autoIncrement: true, indexes: [{ name: 'date', keyPath: 'date', unique: false }] },
     sales:     { keyPath: 'id', autoIncrement: true, indexes: [{ name: 'date', keyPath: 'date', unique: false }] },
     expenses:  { keyPath: 'id', autoIncrement: true, indexes: [{ name: 'date', keyPath: 'date', unique: false }] },
@@ -34,12 +36,13 @@ const DB = (function () {
     if (dbPromise) return dbPromise;
     dbPromise = new Promise((resolve, reject) => {
       const req = indexedDB.open(DB_NAME, DB_VERSION);
-            req.onupgradeneeded = (e) => {
+      req.onupgradeneeded = (e) => {
         const db = e.target.result;
         const upgradeTx = e.target.transaction;
         Object.keys(STORES).forEach((name) => {
           const def = STORES[name];
           if (!db.objectStoreNames.contains(name)) {
+            // خزانة جديدة (تغطي التثبيت النظيف + إضافة suppliers في v3)
             const store = db.createObjectStore(name, { keyPath: def.keyPath, autoIncrement: def.autoIncrement });
             (def.indexes || []).forEach((idx) => {
               store.createIndex(idx.name, idx.keyPath, { unique: idx.unique });
@@ -100,7 +103,7 @@ const DB = (function () {
       } catch (e) { console.warn('audit log failed:', e); }
     },
 
-    // === نسخة احتياطية: تصدير كل الخزانات ككائن واحد ===
+    // === نسخة احتياطية: تصدير كل الخزانات ===
     async exportAll() {
       const out = { _exported_at: new Date().toISOString(), _version: DB_VERSION };
       const names = Object.keys(STORES);
@@ -110,7 +113,7 @@ const DB = (function () {
       return out;
     },
 
-    // === استيراد نسخة احتياطية (replace=true يمسح الحالي الأول) ===
+    // === استيراد نسخة احتياطية ===
     async importAll(data, replace) {
       const db = await open();
       return new Promise((resolve, reject) => {
