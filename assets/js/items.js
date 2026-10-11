@@ -1,9 +1,9 @@
 /* ============================================
-   ZOGAGA HOME - شاشة الأصناف v1.0
-   - إضافة/تعديل/حذف صنف (بتأكيد مخصص)
-   - SKU تلقائي ZG-0001 + باركود EAN-13 داخلي (بادئة 200)
-   - بحث ذكي عربي: تطبيع الحروف + مرادفات + SKU + باركود
-   - عرض المخزون بالتحويل: كرتونة / شيالة / قطعة
+   ZOGAGA HOME - شاشة الأصناف v1.1
+   - SKU تلقائي ZG-0001 + باركود EAN-13 (يظهر في الكارت والفورم)
+   - بحث ذكي عربي: تطبيع + مرادفات + SKU + باركود
+   - وحدات تغليف بأسماء مرنة لكل صنف (قطعة → وسطى → كبيرة)
+   - 4 أسعار: شراء جملة/قطاعي + بيع جملة/قطاعي
    - كل حركة متسجلة في سجل التدقيق
    ============================================ */
 
@@ -16,7 +16,6 @@
 
   function $(id) { return document.getElementById(id); }
 
-  // --- تطبيع عربي للبحث الذكي ---
   function normAr(s) {
     return String(s || '').toLowerCase()
       .replace(/[\u064B-\u0652\u0670\u0640]/g, '')
@@ -34,25 +33,28 @@
     return isNaN(n) ? 0 : n;
   }
 
-  // --- تحويل المخزون: كرتونة + شيالة + قطعة ---
+  // --- تحويل المخزون بأسماء الوحدات المرنة ---
   function stockText(item) {
     let p = item.stock_pieces || 0;
+    const midName = (item.unit_mid || '').trim();
+    const topName = (item.unit_top || '').trim();
     const sps = item.pieces_per_sheila || 0;
     const spc = item.sheilas_per_carton || 0;
     const out = [];
-    if (spc > 0 && sps > 0) {
+
+    if (topName && spc > 0 && sps > 0) {
       const cartons = Math.floor(p / (sps * spc));
-      if (cartons > 0) { out.push(cartons + ' كرتونة'); p -= cartons * sps * spc; }
+      if (cartons > 0) { out.push(cartons + ' ' + topName); p -= cartons * sps * spc; }
     }
-    if (sps > 0) {
-      const sheilas = Math.floor(p / sps);
-      if (sheilas > 0) { out.push(sheilas + ' شيالة'); p -= sheilas * sps; }
+    if (midName && sps > 0) {
+      const mids = Math.floor(p / sps);
+      if (mids > 0) { out.push(mids + ' ' + midName); p -= mids * sps; }
     }
     out.push(p + ' قطعة');
     return out.join(' + ');
   }
 
-  // --- SKU التلقائي ---
+  // --- SKU والباركود ---
   async function nextSku() {
     const all = await DB.all('items');
     let max = 0;
@@ -63,11 +65,18 @@
     return 'ZG-' + String(max + 1).padStart(4, '0');
   }
 
-  // باركود داخلي EAN-13 ببادئة 200 (نطاق الأصناف الداخلية)
   function barcodeForSku(sku) {
     const m = /^ZG-(\d+)$/.exec(sku || '');
     if (!m) return '';
     return '200' + String(parseInt(m[1], 10)).padStart(9, '0');
+  }
+
+  function drawBarcode(svgEl, code, opts) {
+    if (!window.JsBarcode || !code) return false;
+    try {
+      JsBarcode(svgEl, code, opts || { format: 'EAN13', width: 2, height: 46, fontSize: 12, margin: 4 });
+      return true;
+    } catch (e) { return false; }
   }
 
   // --- تحميل وعرض ---
@@ -138,7 +147,7 @@
     meta.appendChild(stock);
 
     const retail = document.createElement('span');
-    retail.textContent = 'قطاعي: ';
+    retail.textContent = 'بيع قطاعي: ';
     const retailB = document.createElement('b');
     retailB.textContent = it.price_retail + ' ج';
     retail.appendChild(retailB);
@@ -146,11 +155,16 @@
 
     if (it.price_wholesale > 0) {
       const wh = document.createElement('span');
-      wh.textContent = 'جملة: ';
+      wh.textContent = 'بيع جملة: ';
       const whB = document.createElement('b');
       whB.textContent = it.price_wholesale + ' ج';
       wh.appendChild(whB);
       meta.appendChild(wh);
+    }
+    if (it.buy_wholesale > 0 || it.buy_retail > 0) {
+      const buy = document.createElement('span');
+      buy.textContent = 'شراء: ج ' + (it.buy_wholesale || 0) + ' / قطاعي ' + (it.buy_retail || 0);
+      meta.appendChild(buy);
     }
     card.appendChild(meta);
 
@@ -162,11 +176,19 @@
     }
 
     if (it.barcode) {
-      const bc = document.createElement('div');
-      bc.className = 'item-syn';
-      bc.style.direction = 'ltr';
-      bc.textContent = 'باركود: ' + it.barcode;
-      card.appendChild(bc);
+      const bcText = document.createElement('div');
+      bcText.className = 'item-syn';
+      bcText.style.direction = 'ltr';
+      bcText.textContent = 'باركود: ' + it.barcode;
+      card.appendChild(bcText);
+
+      const bcBox = document.createElement('div');
+      bcBox.className = 'item-bc';
+      const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+      bcBox.appendChild(svg);
+      if (drawBarcode(svg, it.barcode, { format: 'EAN13', width: 1.4, height: 34, fontSize: 10, margin: 2 })) {
+        card.appendChild(bcBox);
+      }
     }
 
     const actions = document.createElement('div');
@@ -186,6 +208,14 @@
     return card;
   }
 
+  // --- تسميات الوحدات الديناميكية في الفورم ---
+  function updateUnitLabels() {
+    const mid = $('f_unit_mid').value.trim() || 'الوحدة الوسطى';
+    const top = $('f_unit_top').value.trim() || 'الوحدة الكبيرة';
+    $('lbl_sps').textContent = 'قطع في ' + mid;
+    $('lbl_spc').textContent = 'عدد ' + mid + ' في ' + top;
+  }
+
   // --- نافذة إضافة/تعديل ---
   async function openModal(item) {
     editingId = item ? item.id : null;
@@ -193,23 +223,25 @@
     $('f_hint').textContent = '';
     $('f_name').value = item ? item.name : '';
     $('f_synonyms').value = item ? (item.synonyms || []).join('، ') : '';
+    $('f_unit_mid').value = item ? (item.unit_mid !== undefined ? item.unit_mid : 'شيالة') : 'شيالة';
+    $('f_unit_top').value = item ? (item.unit_top !== undefined ? item.unit_top : 'كرتونة') : 'كرتونة';
     $('f_sps').value = item && item.pieces_per_sheila ? item.pieces_per_sheila : '';
     $('f_spc').value = item && item.sheilas_per_carton ? item.sheilas_per_carton : '';
+    $('f_buy_wholesale').value = item && item.buy_wholesale ? item.buy_wholesale : '';
+    $('f_buy_retail').value = item && item.buy_retail ? item.buy_retail : '';
     $('f_retail').value = item ? item.price_retail : '';
     $('f_wholesale').value = item && item.price_wholesale ? item.price_wholesale : '';
     $('f_min').value = item && item.min_stock ? item.min_stock : '';
+    updateUnitLabels();
 
     const sku = item ? item.sku : await nextSku();
     $('f_sku').value = sku;
 
     const code = item ? (item.barcode || barcodeForSku(sku)) : barcodeForSku(sku);
     const box = $('barcodeBox');
-    if (code && window.JsBarcode) {
-      try {
-        JsBarcode('#barcodeSvg', code, { format: 'EAN13', width: 2, height: 46, fontSize: 12, margin: 4 });
-        $('barcodeNum').textContent = code;
-        box.hidden = false;
-      } catch (e) { box.hidden = true; }
+    if (drawBarcode($('barcodeSvg'), code)) {
+      $('barcodeNum').textContent = code;
+      box.hidden = false;
     } else {
       box.hidden = true;
       $('barcodeNum').textContent = code;
@@ -229,43 +261,41 @@
     const name = $('f_name').value.trim();
     const retail = toNum($('f_retail').value);
     if (!name) { $('f_hint').textContent = 'اكتب اسم الصنف الأول'; return; }
-    if (retail <= 0) { $('f_hint').textContent = 'اكتب سعر قطاعي صحيح'; return; }
+    if (retail <= 0) { $('f_hint').textContent = 'اكتب سعر بيع قطاعي صحيح'; return; }
 
     const saveBtn = $('itemSaveBtn');
     saveBtn.disabled = true;
 
     try {
+      const common = {
+        name: name,
+        synonyms: $('f_synonyms').value.split(/[,،]/).map((s) => s.trim()).filter(Boolean),
+        unit_mid: $('f_unit_mid').value.trim(),
+        unit_top: $('f_unit_top').value.trim(),
+        pieces_per_sheila: toNum($('f_sps').value),
+        sheilas_per_carton: toNum($('f_spc').value),
+        buy_wholesale: toNum($('f_buy_wholesale').value),
+        buy_retail: toNum($('f_buy_retail').value),
+        price_retail: retail,
+        price_wholesale: toNum($('f_wholesale').value),
+        min_stock: toNum($('f_min').value),
+        updated_at: Date.now()
+      };
+
       if (editingId) {
         const existing = items.find((x) => x.id === editingId);
-        const obj = Object.assign({}, existing, {
-          name: name,
-          synonyms: $('f_synonyms').value.split(/[,،]/).map((s) => s.trim()).filter(Boolean),
-          pieces_per_sheila: toNum($('f_sps').value),
-          sheilas_per_carton: toNum($('f_spc').value),
-          price_retail: retail,
-          price_wholesale: toNum($('f_wholesale').value),
-          min_stock: toNum($('f_min').value),
-          updated_at: Date.now()
-        });
+        const obj = Object.assign({}, existing, common);
         await DB.put('items', obj);
         await DB.log('item_edit', (obj.sku || '') + ' — ' + obj.name);
       } else {
         const sku = $('f_sku').value;
-        const obj = {
-          name: name,
-          synonyms: $('f_synonyms').value.split(/[,،]/).map((s) => s.trim()).filter(Boolean),
+        const obj = Object.assign({}, common, {
           sku: sku,
           barcode: barcodeForSku(sku),
-          pieces_per_sheila: toNum($('f_sps').value),
-          sheilas_per_carton: toNum($('f_spc').value),
-          price_retail: retail,
-          price_wholesale: toNum($('f_wholesale').value),
-          min_stock: toNum($('f_min').value),
           stock_pieces: 0,
           cost_avg: 0,
-          created_at: Date.now(),
-          updated_at: Date.now()
-        };
+          created_at: Date.now()
+        });
         await DB.add('items', obj);
         await DB.log('item_add', sku + ' — ' + name);
       }
@@ -296,6 +326,8 @@
     $('addItemBtn').addEventListener('click', () => openModal(null));
     $('itemCancelBtn').addEventListener('click', closeModal);
     $('itemForm').addEventListener('submit', saveItem);
+    $('f_unit_mid').addEventListener('input', updateUnitLabels);
+    $('f_unit_top').addEventListener('input', updateUnitLabels);
     $('itemSearch').addEventListener('input', () => {
       $('clearSearch').hidden = $('itemSearch').value.length === 0;
       renderList();
@@ -313,7 +345,6 @@
     });
   }
 
-  // بتتنادى من license.js أول ما البرنامج يفتح
   window.ZG_onUnlock = function () {
     $('appMain').hidden = false;
     loadItems();
