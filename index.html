@@ -55,16 +55,29 @@
     <div class="topbar-left">
       <span id="licChip" class="lic-chip" hidden></span>
       <button id="logoutBtn" class="btn-logout" type="button" hidden>🚪 خروج</button>
-      <span class="ver-chip">v0.3</span>
+      <span class="ver-chip">v0.4</span>
     </div>
   </header>
 
-  <main class="splash">
-    <img src="assets/images/logo.png" alt="شعار زجاجه هوم" class="splash-logo">
-    <h1>زجاجه هوم</h1>
-    <p class="tagline">أدوات منزلية • مبيعات • مخزون • تقارير</p>
-    <button id="installBtn" class="btn-gold" hidden>📲 ثبّت البرنامج على جهازك</button>
-    <p class="hint">المرحلة التالية: الأصناف والمخزون — تحت الإنشاء</p>
+  <main id="appMain" class="app-main" hidden>
+    <nav class="tabs">
+      <button class="tab active" type="button">📦 الأصناف</button>
+      <button class="tab" type="button" disabled>📊 لوحة التحكم — قريبًا</button>
+      <button id="installBtn" class="btn-install" type="button" hidden>📲 تثبيت البرنامج</button>
+    </nav>
+
+    <section id="view-items" class="view">
+      <div class="view-head">
+        <h2>الأصناف <span id="itemsCount" class="count-chip"></span></h2>
+        <button id="addItemBtn" class="btn-gold btn-head" type="button">➕ صنف جديد</button>
+      </div>
+      <div class="search-wrap">
+        <input id="itemSearch" class="search-input" type="text" placeholder="ابحث بالاسم أو المرادف أو SKU أو الباركود..." autocomplete="off">
+        <button id="clearSearch" class="search-clear" type="button" hidden>✕</button>
+      </div>
+      <div id="itemsList" class="items-list"></div>
+      <div id="itemsEmpty" class="empty-state" hidden></div>
+    </section>
   </main>
 
   <footer class="app-footer">
@@ -89,25 +102,21 @@
     </div>
   </div>
 
-    <!-- شاشة انتهاء الاشتراك -->
+  <!-- شاشة انتهاء الاشتراك -->
   <div id="expiredOverlay" class="gate expired-overlay" hidden>
     <div class="gate-card">
       <div class="expired-icon">⏳</div>
       <h1 class="gate-title">انتهى الاشتراك</h1>
       <p id="expiredWhen" class="gate-sub">—</p>
-
       <div class="gate-msg expired-msg">
         😊 <strong>مطمن — كل بياناتك محفوظة بأمان</strong><br>
         أصنافك وفواتيرك وتقاريرك زي ما هي بالظبط، أول ما تشترك تاني البرنامج هيفتح على نفس النقطة اللي وقفت عندها.
       </div>
-
       <div id="expiredCountdown" class="expired-countdown"></div>
-
       <input id="expiredKey" class="gate-input" type="text" placeholder="أدخل مفتاح الترخيص الجديد" autocomplete="off">
       <button id="expiredActivate" class="btn-gold" type="button">تفعيل الاشتراك الجديد</button>
       <p id="expiredHint" class="gate-hint"></p>
       <a id="expiredContact" class="btn-contact" href="https://axentro.site/links.html" target="_blank" rel="noopener">📞 تواصل مع الإدارة للحصول على مفتاح جديد</a>
-
       <div class="gate-footer">
         <p>© 2024 Axentro – All Rights Reserved · Powered By Axentro</p>
         <a href="https://axentro.site/links.html" target="_blank" rel="noopener" aria-label="Axentro Links">
@@ -117,8 +126,82 @@
       </div>
     </div>
   </div>
+
+  <!-- نافذة صنف جديد / تعديل -->
+  <div id="itemModal" class="modal" hidden>
+    <div class="modal-card modal-lg">
+      <h3 id="itemModalTitle" class="modal-title">صنف جديد</h3>
+      <form id="itemForm" autocomplete="off">
+        <label class="f-label">اسم الصنف *</label>
+        <input id="f_name" class="f-input" type="text" required>
+
+        <label class="f-label">أسماء بديلة (مرادفات) — افصل بينهم بفاصلة</label>
+        <input id="f_synonyms" class="f-input" type="text" placeholder="مثال: استكانة, استكان">
+
+        <div class="f-row">
+          <div class="f-col">
+            <label class="f-label">قطع في الشيالة</label>
+            <input id="f_sps" class="f-input" type="number" min="0" placeholder="مثال: 4">
+          </div>
+          <div class="f-col">
+            <label class="f-label">شيالات في الكرتونة</label>
+            <input id="f_spc" class="f-input" type="number" min="0" placeholder="مثال: 12">
+          </div>
+        </div>
+
+        <div class="f-row">
+          <div class="f-col">
+            <label class="f-label">سعر القطاعي (جنيه) *</label>
+            <input id="f_retail" class="f-input" type="number" min="0" step="0.25" required>
+          </div>
+          <div class="f-col">
+            <label class="f-label">سعر الجملة (جنيه)</label>
+            <input id="f_wholesale" class="f-input" type="number" min="0" step="0.25">
+          </div>
+        </div>
+
+        <div class="f-row">
+          <div class="f-col">
+            <label class="f-label">حد أدنى للمخزون (تنبيه)</label>
+            <input id="f_min" class="f-input" type="number" min="0" value="0">
+          </div>
+          <div class="f-col">
+            <label class="f-label">SKU (تلقائي)</label>
+            <input id="f_sku" class="f-input" type="text" readonly>
+          </div>
+        </div>
+
+        <div id="barcodeBox" class="barcode-box" hidden>
+          <svg id="barcodeSvg"></svg>
+          <p id="barcodeNum" class="barcode-num"></p>
+        </div>
+
+        <p id="f_hint" class="gate-hint"></p>
+        <div class="modal-actions">
+          <button type="submit" id="itemSaveBtn" class="btn-save">💾 حفظ</button>
+          <button type="button" id="itemCancelBtn" class="btn-cancel">إلغاء</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- تأكيد حذف صنف -->
+  <div id="confirmModal" class="modal" hidden>
+    <div class="modal-card">
+      <div class="modal-icon">🗑️</div>
+      <h3 class="modal-title">تأكيد الحذف</h3>
+      <p id="confirmText" class="modal-text"></p>
+      <div class="modal-actions">
+        <button id="confirmYes" class="btn-danger" type="button">نعم، احذف</button>
+        <button id="confirmNo" class="btn-cancel" type="button">إلغاء</button>
+      </div>
+    </div>
+  </div>
+
   <script src="assets/js/db.js"></script>
+  <script src="assets/js/jsbarcode.all.min.js"></script>
   <script src="assets/js/license.js"></script>
+  <script src="assets/js/items.js"></script>
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
