@@ -1,4 +1,4 @@
-const CACHE_VERSION = 'zogaga-v0.5.1';
+const CACHE_VERSION = 'zogaga-v0.5.2';
 const PRECACHE_URLS = [
   './', './index.html', './manifest.json', './favicon.svg',
   './assets/css/style.css',
