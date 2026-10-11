@@ -107,6 +107,7 @@
     };
     curLine = null;
     renderForm();
+    bindSearch();
     $('purModal').hidden = false;
   }
 
@@ -670,7 +671,7 @@
       const drop = $('lnDrop');
       if (drop && !drop.hidden && !e.target.closest('.search-wrap')) drop.hidden = true;
     });
-    bindSearch();
+    // bindSearch بتنادى وقت فتح كل فاتورة جديدة — مش وقت تحميل الصفحة
   }
 
   window.ZG_loadPurchases = loadInvoices;
