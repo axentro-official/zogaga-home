@@ -179,7 +179,6 @@
     if (!$('appMain')) return;
     initTabs();
 
-    $('addSupBtn').addEventListener('click', () => openModal(null));
     $('supCancelBtn').addEventListener('click', closeModal);
     $('supForm').addEventListener('submit', saveSup);
     $('supSearch').addEventListener('input', () => {
