@@ -184,3 +184,22 @@ a.tel-link:hover{text-decoration:underline}
 #purPreview .taf{font-size:.75rem;text-align:center;color:#555;margin-top:4px}
 #purPreview .inv-foot{text-align:center;font-size:.7rem;color:#666;margin-top:8px}
 #purPreview .inv-qr{width:52px}
+/* ===== التقويم العربي Flatpickr — بهوية زجاجه هوم ===== */
+.flatpickr-calendar{background:#1B140C;border:1px solid var(--gold);border-radius:14px;box-shadow:0 16px 40px rgba(0,0,0,.65);font-family:inherit;direction:rtl}
+.flatpickr-calendar .flatpickr-months .flatpickr-month{color:var(--cream)}
+.flatpickr-calendar .flatpickr-current-month .flatpickr-monthDropdown-months{background:#1B140C;color:var(--gold);font-weight:800}
+.flatpickr-calendar .flatpickr-current-month input.cur-year{color:var(--gold);font-weight:800}
+.flatpickr-calendar span.flatpickr-weekday{color:var(--muted)}
+.flatpickr-calendar .flatpickr-day{color:var(--cream);border-radius:8px}
+.flatpickr-calendar .flatpickr-day:hover{background:var(--gold-soft);border-color:var(--gold)}
+.flatpickr-calendar .flatpickr-day.today{border-color:var(--gold)}
+.flatpickr-calendar .flatpickr-day.selected{background:var(--gold);border-color:var(--gold);color:#221708;font-weight:800}
+.flatpickr-calendar .flatpickr-day.flatpickr-disabled,.flatpickr-calendar .flatpickr-day.prevMonthDay,.flatpickr-calendar .flatpickr-day.nextMonthDay{color:#5c5245}
+.flatpickr-calendar .flatpickr-prev-month svg,.flatpickr-calendar .flatpickr-next-month svg{fill:var(--gold)}
+.flatpickr-calendar .flatpickr-months .flatpickr-prev-month:hover svg,.flatpickr-calendar .flatpickr-months .flatpickr-next-month:hover svg{fill:var(--cream)}
+
+/* ===== التفاصيل الإضافية المطوية ===== */
+.adv-details{margin-top:10px;border:1px dashed var(--line);border-radius:10px;padding:10px 12px}
+.adv-details summary{cursor:pointer;font-size:.82rem;font-weight:700;color:var(--muted)}
+.adv-details summary:hover{color:var(--gold)}
+.adv-details[open] summary{margin-bottom:8px;color:var(--gold)}
