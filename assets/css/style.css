@@ -184,6 +184,7 @@ a.tel-link:hover{text-decoration:underline}
 #purPreview .taf{font-size:.75rem;text-align:center;color:#555;margin-top:4px}
 #purPreview .inv-foot{text-align:center;font-size:.7rem;color:#666;margin-top:8px}
 #purPreview .inv-qr{width:52px}
+
 /* ===== التقويم العربي Flatpickr — بهوية زجاجه هوم ===== */
 .flatpickr-calendar{background:#1B140C;border:1px solid var(--gold);border-radius:14px;box-shadow:0 16px 40px rgba(0,0,0,.65);font-family:inherit;direction:rtl}
 .flatpickr-calendar .flatpickr-months .flatpickr-month{color:var(--cream)}
