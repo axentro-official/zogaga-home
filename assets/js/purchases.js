@@ -142,20 +142,30 @@
     $('purModal').hidden = false;
   }
 
-  // ===== التقويم العربي =====
+    // ===== التقويم العربي — مع احتياطي ذكي لو المكتبة مش متاحة =====
   function initDatePicker() {
     const el = $('purDate');
     if (!el) return;
+    // التاريخ الافتراضي = النهاردة دايمًا
+    el.value = inv.date;
+
     if (window.flatpickr) {
-      flatpickr(el, {
-        locale: (window.flatpickr && window.flatpickr.l10ns && window.flatpickr.l10ns.ar) ? 'ar' : 'default',
-        dateFormat: 'Y-m-d',
-        defaultDate: inv.date,
-        onChange: function (sel, str) { inv.date = str; }
-      });
-    } else {
-      el.addEventListener('change', (e) => { inv.date = e.target.value; });
+      // التقويم الاحترافي متاح
+      el.readOnly = true;
+      try {
+        flatpickr(el, {
+          locale: (window.flatpickr.l10ns && window.flatpickr.l10ns.ar) ? 'ar' : 'default',
+          dateFormat: 'Y-m-d',
+          defaultDate: inv.date,
+          onChange: function (sel, str) { inv.date = str; }
+        });
+        return;
+      } catch (e) { /* نكمل للاحتياطي تحت */ }
     }
+    // الاحتياطي: تقويم المتصفح المدمج (يشتغل على كل المتصفحات من غير مكتبة)
+    el.readOnly = false;
+    el.type = 'date';
+    el.addEventListener('change', (e) => { if (e.target.value) inv.date = e.target.value; });
   }
 
   // ===== واجهة الفاتورة =====
