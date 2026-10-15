@@ -1,8 +1,9 @@
-const CACHE_VERSION = 'zogaga-v0.5.3';
+const CACHE_VERSION = 'zogaga-v0.5.4';
 const PRECACHE_URLS = [
   './', './index.html', './manifest.json', './favicon.svg',
-  './assets/css/style.css',
+  './assets/css/style.css', './assets/css/flatpickr.min.css',
   './assets/js/db.js', './assets/js/jsbarcode.all.min.js',
+  './assets/js/flatpickr.min.js', './assets/js/flatpickr-ar.js',
   './assets/js/license.js', './assets/js/items.js',
   './assets/js/suppliers.js', './assets/js/purchases.js',
   './assets/images/logo.png', './assets/images/logo-print.png',
