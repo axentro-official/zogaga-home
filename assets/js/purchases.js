@@ -1,12 +1,11 @@
 /* ============================================
-   ZOGAGA HOME - فواتير الشراء v1.2
+   ZOGAGA HOME - فواتير الشراء v1.3
    - رقم تلقائي PUR-YYYY-00001 (لا يتكرر أبدًا)
-   - المورد اختياري، بيتسجل تلقائيًا في الموردين
+   - فورم مبسط: 6 خانات أساسية فقط + تفاصيل اختيارية مطوية
+   - سؤال ذكي واحد: "الكرتونة فيها كام قطعة؟"
    - سعر الشراء = سعر الوحدة اللي بتشتري بيها (كرتونة بـ 200 = إجمالي 200)
-   - الكمية بتتكتب في الخانة اللي اشتريت بيها والباقي فاضي
-   - خصم لكل سطر + خصم إجمالي (جنيه أو %) + تفقيط عربي
-   - الحفظ: مخزون + تكلفة القطعة (متوسط مرجح) + سجل تدقيق
-   - عرض + طباعة حراري 80mm / A4 بباركود الفاتورة
+   - التقويم العربي Flatpickr لاختيار التاريخ
+   - خصم لكل سطر + خصم إجمالي + تفقيط + طباعة حراري/A4
    ============================================ */
 
 (function () {
@@ -65,49 +64,41 @@
     return 'PUR-' + y + '-' + String(seq.n).padStart(5, '0');
   }
 
-  // ===== القطع: كميات الخانات الثلاثة × معاملات الصنف =====
+  // ===== حسابات السطر =====
   function linePieces(l) {
     const sps = toNum(l.sps), spc = toNum(l.spc);
     const hasMid = !!(l.unit_mid && l.unit_mid.trim());
     const hasTop = !!(l.unit_top && l.unit_top.trim());
     let p = toNum(l.qty_pieces);
     if (hasTop && hasMid) p += toNum(l.qty_top) * spc * sps + toNum(l.qty_mid) * sps;
-    else if (hasTop)      p += toNum(l.qty_top) * sps;      // كرتونة فيها قطع مباشرة (مفيش وسطى)
+    else if (hasTop)      p += toNum(l.qty_top) * sps;
     else if (hasMid)      p += toNum(l.qty_mid) * sps;
     return Math.round(p);
   }
 
-  // ===== وحدة السعر: كام قطعة في الوحدة اللي بنتسعر بيها =====
-  function priceUnitPieces(l) {
+  // كام قطعة في وحدة السعر المختارة
+  function unitPieces(l, u) {
     const sps = toNum(l.sps), spc = toNum(l.spc);
-    const hasMid = !!(l.unit_mid && l.unit_mid.trim());
-    const hasTop = !!(l.unit_top && l.unit_top.trim());
-    const u = l.price_unit || (hasTop ? 'top' : (hasMid ? 'mid' : 'piece'));
     if (u === 'top') {
-      if (hasTop && hasMid && sps > 0 && spc > 0) return spc * sps;
-      if (hasTop && !hasMid && sps > 0) return sps;
-      return 0;
+      if (l.unit_mid && l.unit_mid.trim()) return (sps > 0 && spc > 0) ? spc * sps : 0;
+      return sps > 0 ? sps : 0;
     }
-    if (u === 'mid') return (hasMid && sps > 0) ? sps : 0;
+    if (u === 'mid') return sps > 0 ? sps : 0;
     return 1;
   }
 
-  function priceUnitName(l) {
-    const u = l.price_unit || (l.unit_top && l.unit_top.trim() ? 'top' : 'piece');
+  function unitName(l, u) {
     if (u === 'top') return l.unit_top || 'وحدة كبيرة';
     if (u === 'mid') return l.unit_mid || 'وحدة وسطى';
     return 'قطعة';
   }
 
-  // كلفة القطعة الواحدة من سعر الوحدة
   function perPieceCost(l) {
-    const upu = priceUnitPieces(l);
+    const upu = unitPieces(l, l.price_unit);
     return upu > 0 ? toNum(l.unit_price) / upu : toNum(l.unit_price);
   }
 
-  function lineGross(l) {
-    return linePieces(l) * perPieceCost(l);
-  }
+  function lineGross(l) { return linePieces(l) * perPieceCost(l); }
 
   function lineTotal(l) {
     const gross = lineGross(l);
@@ -126,13 +117,11 @@
     return { before: r2(before), disc: r2(disc), after: r2(before - disc) };
   }
 
-  // نص الكمية المقروء: "1 كرتونة + 3 شيالة + 10 قطعة"
   function qtyText(l) {
     const parts = [];
-    const qt = toNum(l.qty_top), qm = toNum(l.qty_mid), qp = toNum(l.qty_pieces);
-    if (qt > 0) parts.push(qt + ' ' + (l.unit_top || 'وحدة كبيرة'));
-    if (qm > 0) parts.push(qm + ' ' + (l.unit_mid || 'وحدة وسطى'));
-    if (qp > 0) parts.push(qp + ' قطعة');
+    if (toNum(l.qty_top) > 0) parts.push(toNum(l.qty_top) + ' ' + (l.unit_top || 'وحدة كبيرة'));
+    if (toNum(l.qty_mid) > 0) parts.push(toNum(l.qty_mid) + ' ' + (l.unit_mid || 'وحدة وسطى'));
+    if (toNum(l.qty_pieces) > 0) parts.push(toNum(l.qty_pieces) + ' قطعة');
     return parts.join(' + ') || '0 قطعة';
   }
 
@@ -149,7 +138,24 @@
     curLine = null;
     renderForm();
     bindSearch();
+    initDatePicker();
     $('purModal').hidden = false;
+  }
+
+  // ===== التقويم العربي =====
+  function initDatePicker() {
+    const el = $('purDate');
+    if (!el) return;
+    if (window.flatpickr) {
+      flatpickr(el, {
+        locale: (window.flatpickr && window.flatpickr.l10ns && window.flatpickr.l10ns.ar) ? 'ar' : 'default',
+        dateFormat: 'Y-m-d',
+        defaultDate: inv.date,
+        onChange: function (sel, str) { inv.date = str; }
+      });
+    } else {
+      el.addEventListener('change', (e) => { inv.date = e.target.value; });
+    }
   }
 
   // ===== واجهة الفاتورة =====
@@ -161,7 +167,7 @@
     head.className = 'inv-head';
     head.innerHTML =
       '<div class="inv-num"><span class="sku-chip">' + esc(inv.number) + '</span>' +
-      '<span class="inv-date-lbl">التاريخ</span><input type="date" id="purDate" class="f-input f-date" value="' + esc(inv.date) + '"></div>';
+      '<span class="inv-date-lbl">التاريخ</span><input type="text" id="purDate" class="f-input f-date" readonly placeholder="اختر التاريخ"></div>';
     body.appendChild(head);
 
     const sup = document.createElement('div');
@@ -215,7 +221,6 @@
   }
 
   function bindForm() {
-    $('purDate').addEventListener('change', (e) => { inv.date = e.target.value; });
     $('purSupName').addEventListener('input', async (e) => {
       inv.supplier_name = e.target.value;
       const sups = await DB.all('suppliers');
@@ -286,15 +291,13 @@
   }
 
   function pickExisting(it) {
-    const defUnit = it.buy_unit || (it.unit_top && it.unit_top.trim() ? 'top' : (it.unit_mid && it.unit_mid.trim() ? 'mid' : 'piece'));
     curLine = {
       existing_id: it.id, name: it.name, sku: it.sku,
-      synonyms: it.synonyms || [],
       unit_mid: it.unit_mid || '', unit_top: it.unit_top || '',
       sps: it.pieces_per_sheila || 0, spc: it.sheilas_per_carton || 0,
       qty_top: '', qty_mid: '', qty_pieces: '',
       buy_type: 'wholesale',
-      price_unit: defUnit,
+      price_unit: it.buy_unit || (it.unit_top && it.unit_top.trim() ? 'top' : 'piece'),
       unit_price: it.buy_wholesale || it.buy_retail || 0,
       disc_type: 'amt', disc_value: 0
     };
@@ -305,8 +308,8 @@
   function pickNew(name) {
     curLine = {
       existing_id: null, name: name, sku: '',
-      synonyms: [], unit_mid: 'شيالة', unit_top: 'كرتونة',
-      sps: '', spc: '', qty_top: '', qty_mid: '', qty_pieces: '',
+      synonyms: [], unit_mid: '', unit_top: 'كرتونة',
+      sps: 0, spc: 0, qty_top: '', qty_mid: '', qty_pieces: '',
       buy_type: 'wholesale', price_unit: 'top', unit_price: '',
       sell_retail: '', sell_wholesale: '', min_stock: '',
       disc_type: 'amt', disc_value: 0, is_new: true
@@ -315,6 +318,7 @@
     renderLineFields();
   }
 
+  // ===== الفورم المبسط =====
   function renderLineFields() {
     const box = $('lnFields');
     box.replaceChildren();
@@ -327,80 +331,54 @@
                            : '<span class="sku-chip">صنف جديد — هيتولد مع الحفظ</span>');
     box.appendChild(info);
 
+    // (1) أسعار البيع — للصنف الجديد فقط (الأهم لأرباحك)
     if (curLine.is_new) {
       const f1 = document.createElement('div');
       f1.className = 'f-row';
       f1.innerHTML =
-        '<div class="f-col"><label class="f-label">مرادفات (فاصلة بينهم — اختياري)</label><input id="nl_syn" class="f-input" placeholder="استكانة, استكان"></div>' +
-        '<div class="f-col"><label class="f-label">حد أدنى للمخزون (تنبيه)</label><input id="nl_min" class="f-input" type="number" min="0" value="0"></div>';
+        '<div class="f-col"><label class="f-label">سعر بيع قطاعي (أساسي للأرباح) *</label><input id="nl_retail" class="f-input" type="number" min="0" step="0.25" placeholder="مثال: 300"></div>' +
+        '<div class="f-col"><label class="f-label">سعر بيع جملة (اختياري)</label><input id="nl_wholesale" class="f-input" type="number" min="0" step="0.25" placeholder="مثال: 250"></div>';
       box.appendChild(f1);
-
-      const f2 = document.createElement('div');
-      f2.className = 'f-row';
-      f2.innerHTML =
-        '<div class="f-col"><label class="f-label">اسم وحدة التغليف الوسطى (اختياري)</label><input id="nl_umid" class="f-input" value="شيالة"></div>' +
-        '<div class="f-col"><label class="f-label">اسم وحدة التغليف الكبيرة (اختياري)</label><input id="nl_utop" class="f-input" value="كرتونة"></div>';
-      box.appendChild(f2);
-
-      const f3 = document.createElement('div');
-      f3.className = 'f-row';
-      f3.innerHTML =
-        '<div class="f-col"><label class="f-label" id="nl_sps_l">قطع في الوسطى</label><input id="nl_sps" class="f-input" type="number" min="0"></div>' +
-        '<div class="f-col"><label class="f-label" id="nl_spc_l">عدد الوسطى في الكبيرة</label><input id="nl_spc" class="f-input" type="number" min="0"></div>';
-      box.appendChild(f3);
-
-      const f4 = document.createElement('div');
-      f4.className = 'f-row';
-      f4.innerHTML =
-        '<div class="f-col"><label class="f-label">سعر بيع قطاعي (أساسي للأرباح) *</label><input id="nl_retail" class="f-input" type="number" min="0" step="0.25"></div>' +
-        '<div class="f-col"><label class="f-label">سعر بيع جملة</label><input id="nl_wholesale" class="f-input" type="number" min="0" step="0.25"></div>';
-      box.appendChild(f4);
-
-      ['nl_umid', 'nl_utop'].forEach((id) => $(id).addEventListener('input', updateNewLabels));
-      updateNewLabels();
     }
 
-    // خانات الكميات الثلاثة
+    // (2) الكمية — اكتب في الخانة اللي اشتريت بيها
+    const hasMid = !!(curLine.unit_mid && curLine.unit_mid.trim());
     const qt = document.createElement('div');
     qt.className = 'f-row qty3';
-    const lblMid = curLine.unit_mid ? 'كمية ' + curLine.unit_mid : 'كمية وسطى';
     const lblTop = curLine.unit_top ? 'كمية ' + curLine.unit_top : 'كمية كبيرة';
     qt.innerHTML =
       '<div class="f-col"><label class="f-label">' + esc(lblTop) + '</label><input id="ql_top" class="f-input" type="number" min="0" step="1" value="' + esc(curLine.qty_top) + '" placeholder="مثال: 1"></div>' +
-      '<div class="f-col"><label class="f-label">' + esc(lblMid) + '</label><input id="ql_mid" class="f-input" type="number" min="0" step="1" value="' + esc(curLine.qty_mid) + '" ' + (curLine.unit_mid ? '' : 'disabled') + '></div>' +
+      (hasMid
+        ? '<div class="f-col"><label class="f-label">كمية ' + esc(curLine.unit_mid) + '</label><input id="ql_mid" class="f-input" type="number" min="0" step="1" value="' + esc(curLine.qty_mid) + '"></div>'
+        : '') +
       '<div class="f-col"><label class="f-label">قطعة</label><input id="ql_pcs" class="f-input" type="number" min="0" step="1" value="' + esc(curLine.qty_pieces) + '"></div>';
     box.appendChild(qt);
 
-    const qh = document.createElement('p');
-    qh.className = 'qty-hint';
-    qh.textContent = 'اكتب الكمية في الخانة اللي اشتريت بيها والباقي فاضي — مثال: 1 في «كمية كرتونة» = 72 قطعة (12 × 6).';
-    box.appendChild(qh);
+    // (3) السؤال الذكي — للصنف الجديد فقط: الوحدة الكبيرة فيها كام قطعة
+    if (curLine.is_new) {
+      const sq = document.createElement('div');
+      sq.innerHTML =
+        '<label class="f-label" id="nl_smart_l">الوحدة الكبيرة فيها كام قطعة؟</label>' +
+        '<input id="nl_top_pieces" class="f-input" type="number" min="0" placeholder="مثال: كرتونة فيها 72 قطعة">';
+      box.appendChild(sq);
+    }
 
-    // نوع الشراء + وحدة السعر + السعر + خصم السطر
-    let punitOpts = '';
-    if (curLine.unit_top && curLine.unit_top.trim()) punitOpts += '<option value="top"' + (curLine.price_unit === 'top' ? ' selected' : '') + '>سعر ' + esc(curLine.unit_top) + '</option>';
-    if (curLine.unit_mid && curLine.unit_mid.trim()) punitOpts += '<option value="mid"' + (curLine.price_unit === 'mid' ? ' selected' : '') + '>سعر ' + esc(curLine.unit_mid) + '</option>';
-    punitOpts += '<option value="piece"' + (curLine.price_unit === 'piece' ? ' selected' : '') + '>سعر القطعة</option>';
-
+    // (4) نوع الشراء + السعر (بيتملى تلقائي من مرجع الصنف)
     const pr = document.createElement('div');
     pr.className = 'f-row';
     pr.innerHTML =
-      '<div class="f-col"><label class="f-label">نوع الشراء — والسعر بيتملى تلقائي</label>' +
+      '<div class="f-col"><label class="f-label">نوع الشراء</label>' +
       '<div class="disc-wrap"><select id="ql_btype" class="f-input f-sel">' +
       '<option value="wholesale"' + (curLine.buy_type === 'wholesale' ? ' selected' : '') + '>جملة</option>' +
       '<option value="retail"' + (curLine.buy_type === 'retail' ? ' selected' : '') + '>قطاعي</option></select>' +
-      '<input id="ql_price" class="f-input" type="number" min="0" step="0.25" value="' + esc(curLine.unit_price) + '" placeholder="سعر الشراء"></div></div>' +
-      '<div class="f-col"><label class="f-label">خصم السطر (جنيه أو %)</label>' +
+      '<input id="ql_price" class="f-input" type="number" min="0" step="0.25" value="' + esc(curLine.unit_price) + '" placeholder="سعر الشراء"></div>' +
+      '<p class="qty-hint">السعر ده سعر ' + esc(unitName(curLine, curLine.price_unit)) + ' اللي اشتريت بيها — بيتحسب لوحده.</p></div>' +
+      '<div class="f-col"><label class="f-label">خصم السطر (اختياري)</label>' +
       '<div class="disc-wrap"><input id="ql_disc" class="f-input" type="number" min="0" step="0.25" value="' + esc(curLine.disc_value) + '">' +
       '<select id="ql_dtype" class="f-input f-sel"><option value="amt"' + (curLine.disc_type === 'amt' ? ' selected' : '') + '>جنيه</option><option value="pct"' + (curLine.disc_type === 'pct' ? ' selected' : '') + '>%</option></select></div></div>';
     box.appendChild(pr);
 
-    const pu = document.createElement('div');
-    pu.innerHTML =
-      '<label class="f-label">السعر اللي هتكتبه ده سعرك لوحدة إيه؟</label>' +
-      '<select id="ql_punit" class="f-input">' + punitOpts + '</select>';
-    box.appendChild(pu);
-
+    // (5) الإجمالي الحي
     const live = document.createElement('p');
     live.className = 'ln-live';
     live.id = 'lnLive';
@@ -413,53 +391,92 @@
     add.addEventListener('click', addLine);
     box.appendChild(add);
 
+    // (6) تفاصيل إضافية — مطوية (اختياري تمامًا)
+    if (curLine.is_new) {
+      const det = document.createElement('details');
+      det.className = 'adv-details';
+      det.innerHTML =
+        '<summary>⚙️ تفاصيل إضافية (اختياري — مرادفات، وحدة وسطى، حد أدنى)</summary>' +
+        '<div class="f-row"><div class="f-col"><label class="f-label">مرادفات (فاصلة بينهم)</label><input id="nl_syn" class="f-input" placeholder="استكانة, استكان"></div>' +
+        '<div class="f-col"><label class="f-label">حد أدنى للمخزون (تنبيه)</label><input id="nl_min" class="f-input" type="number" min="0" value="0"></div></div>' +
+        '<div class="f-row"><div class="f-col"><label class="f-label">فيها وحدة وسطى؟ اسمها (اختياري)</label><input id="nl_mid_name" class="f-input" placeholder="مثال: شيالة — اتركه فاضي لو مفيش"></div>' +
+        '<div class="f-col"><label class="f-label">كل وحدة وسطى فيها كام قطعة؟</label><input id="nl_mid_pieces" class="f-input" type="number" min="0" placeholder="مثال: 6"></div></div>' +
+        '<p class="qty-hint">لو فعّلت الوحدة الوسطى، السؤال اللي فوق هيتحول لـ«الكرتونة فيها كام وحدة وسطى؟» وتكتب عدد الوحدات الوسطى جوه الكرتونة.</p>';
+      box.appendChild(det);
+
+      ['nl_mid_name', 'nl_mid_pieces'].forEach((id) => {
+        $(id).addEventListener('input', updateSmartLabel);
+      });
+      updateSmartLabel();
+    }
+
     ['ql_top', 'ql_mid', 'ql_pcs', 'ql_price', 'ql_disc', 'ql_dtype'].forEach((id) => {
       $(id).addEventListener('input', updateLineLive);
       $(id).addEventListener('change', updateLineLive);
     });
-    $('ql_punit').addEventListener('change', updateLineLive);
-    $('ql_btype').addEventListener('change', (e) => {
-      curLine.buy_type = e.target.value;
-      updateLineLive(true);
-    });
+    if (curLine.is_new) {
+      $('nl_top_pieces').addEventListener('input', updateLineLive);
+    }
     updateLineLive();
   }
 
-  function updateNewLabels() {
-    const mid = $('nl_umid').value.trim();
-    const top = $('nl_utop').value.trim() || 'الكبيرة';
-    if (mid) {
-      $('nl_sps_l').textContent = 'قطع في ' + mid;
-      $('nl_spc_l').textContent = 'عدد ' + mid + ' في ' + top;
-      $('nl_spc').disabled = false;
+  function updateSmartLabel() {
+    const lbl = $('nl_smart_l');
+    if (!lbl || !$('nl_mid_name')) return;
+    const midName = $('nl_mid_name').value.trim();
+    if (midName) {
+      lbl.textContent = 'الوحدة الكبيرة (' + (curLine.unit_top || 'كرتونة') + ') فيها كام ' + midName + '؟';
     } else {
-      // مفيش وحدة وسطى → القطع بتتكتب مباشرة جوه الكبيرة
-      $('nl_sps_l').textContent = 'قطع في ' + top;
-      $('nl_spc_l').textContent = '— مفيش وحدة وسطى';
-      $('nl_spc').value = '';
-      $('nl_spc').disabled = true;
+      lbl.textContent = 'الوحدة الكبيرة فيها كام قطعة؟';
     }
   }
 
   function syncLineFromUI() {
     if (!curLine) return 0;
     if (curLine.is_new) {
-      curLine.synonyms = ($('nl_syn').value || '').split(/[,،]/).map((s) => s.trim()).filter(Boolean);
-      curLine.unit_mid = $('nl_umid').value.trim();
-      curLine.unit_top = $('nl_utop').value.trim();
-      curLine.sps = toNum($('nl_sps').value);
-      curLine.spc = toNum($('nl_spc').value);
       curLine.sell_retail = toNum($('nl_retail').value);
       curLine.sell_wholesale = toNum($('nl_wholesale').value);
-      curLine.min_stock = toNum($('nl_min').value);
+      curLine.min_stock = toNum(($('nl_min') || {}).value || 0);
+      curLine.synonyms = (($('nl_syn') || {}).value || '').split(/[,،]/).map((s) => s.trim()).filter(Boolean);
+
+      // السؤال الذكي → معاملات الصنف
+      const P = toNum(($('nl_top_pieces') || {}).value || 0);   // قيمة السؤال
+      const midNameEl = $('nl_mid_name');
+      const midPiecesEl = $('nl_mid_pieces');
+      const midName = midNameEl ? midNameEl.value.trim() : '';
+      const midPieces = midPiecesEl ? toNum(midPiecesEl.value) : 0;
+
+      if (midName && midPieces > 0) {
+        curLine.unit_mid = midName;
+        curLine.unit_top = curLine.unit_top || 'كرتونة';
+        curLine.sps = midPieces;                 // كل وسطى فيها X قطعة
+        curLine.spc = P > 0 ? Math.round(P / midPieces) : 0;  // الكبيرة فيها P وسطى
+      } else {
+        curLine.unit_mid = '';
+        curLine.unit_top = 'كرتونة';
+        curLine.sps = P;                          // الكبيرة فيها P قطعة مباشرة
+        curLine.spc = 0;
+      }
     }
     curLine.qty_top = $('ql_top').value;
-    curLine.qty_mid = $('ql_mid').value;
+    curLine.qty_mid = $('ql_mid') ? $('ql_mid').value : '';
     curLine.qty_pieces = $('ql_pcs').value;
     curLine.unit_price = toNum($('ql_price').value);
     curLine.disc_value = toNum($('ql_disc').value);
     curLine.disc_type = $('ql_dtype').value;
-    curLine.price_unit = $('ql_punit') ? $('ql_punit').value : (curLine.price_unit || 'piece');
+
+    // وحدة السعر: بتتحدد تلقائيًا من الخانة اللي كتبت فيها الكمية
+    const prevUnit = curLine.price_unit;
+    const newUnit = toNum(curLine.qty_top) > 0 ? 'top' : (toNum(curLine.qty_mid) > 0 ? 'mid' : 'piece');
+    if (newUnit !== prevUnit) {
+      const oldUpu = unitPieces(curLine, prevUnit);
+      const newUpu = unitPieces(curLine, newUnit);
+      if (oldUpu > 0 && newUpu > 0) {
+        curLine.unit_price = r2(curLine.unit_price * oldUpu / newUpu);
+        $('ql_price').value = curLine.unit_price;
+      }
+      curLine.price_unit = newUnit;
+    }
     return linePieces(curLine);
   }
 
@@ -472,7 +489,6 @@
           curLine.unit_price = curLine.buy_type === 'wholesale' ? (it.buy_wholesale || 0) : (it.buy_retail || 0);
           if (it.buy_unit) curLine.price_unit = it.buy_unit;
           $('ql_price').value = curLine.unit_price;
-          if ($('ql_punit')) $('ql_punit').value = curLine.price_unit;
           updateLineLive();
         }
       });
@@ -481,7 +497,7 @@
     const gross = lineGross(curLine);
     const t = lineTotal(curLine);
     $('lnLive').innerHTML =
-      'الكمية: <b>' + esc(qtyText(curLine)) + '</b> (' + pieces + ' قطعة) × ' + r2(curLine.unit_price) + ' ج/' + esc(priceUnitName(curLine)) +
+      'الكمية: <b>' + esc(qtyText(curLine)) + '</b> (' + pieces + ' قطعة) × ' + r2(curLine.unit_price) + ' ج/' + esc(unitName(curLine, curLine.price_unit)) +
       ' = <b>' + r2(gross) + ' ج</b>' +
       (gross - t > 0 ? ' − خصم ' + r2(gross - t) + ' ج' : '') +
       ' ← <b>' + r2(t) + ' ج</b>';
@@ -491,11 +507,12 @@
     if (!curLine) return;
     const pieces = syncLineFromUI();
     if (pieces <= 0) { $('purHint').textContent = 'اكتب كمية واحدة على الأقل في أي خانة'; return; }
-    if (curLine.is_new && curLine.sell_retail <= 0) { $('purHint').textContent = 'الصنف الجديد محتاج سعر بيع قطاعي (أساسي لحساب أرباحك)'; return; }
+    if (curLine.is_new && curLine.sell_retail <= 0) { $('purHint').textContent = 'اكتب سعر بيع قطاعي — أساسي لحساب أرباحك'; return; }
     if (curLine.unit_price <= 0) { $('purHint').textContent = 'اكتب سعر الشراء'; return; }
     $('purHint').textContent = '';
     curLine.qty_text = qtyText(curLine);
     curLine.line_total = lineTotal(curLine);
+    curLine.price_unit_name = unitName(curLine, curLine.price_unit);
     inv.lines.push(JSON.parse(JSON.stringify(curLine)));
     curLine = null;
     $('lnSearch').value = '';
@@ -522,9 +539,9 @@
       main.className = 'line-main';
       main.innerHTML = '<b>' + esc(l.name) + '</b> <span class="sku-chip">' + esc(l.sku || 'جديد') + '</span>' +
         '<span class="item-syn"> ' + esc(l.qty_text || (linePieces(l) + ' قطعة')) +
-        ' × ' + r2(l.unit_price) + ' ج/' + esc(priceUnitName(l)) +
+        ' × ' + r2(l.unit_price) + ' ج/' + esc(l.price_unit_name || 'وحدة') +
         (toNum(l.disc_value) > 0 ? ' − خصم ' + (l.disc_type === 'pct' ? l.disc_value + '%' : l.disc_value + ' ج') : '') +
-        ' = <b>' + r2(lineTotal(l)) + ' ج</b></span>';
+        ' = <b>' + r2(l.line_total || lineTotal(l)) + ' ج</b></span>';
       const del = document.createElement('button');
       del.type = 'button';
       del.className = 'btn-sm danger';
@@ -545,7 +562,7 @@
     $('purTafqeet').textContent = t.after > 0 ? tafqeetMoney(t.after) : '';
   }
 
-  // ===== الحفظ: أصناف + مخزون + تكلفة القطعة + الفاتورة =====
+  // ===== الحفظ =====
   async function saveInvoice() {
     if (!inv.lines.length) { $('purHint').textContent = 'الفاتورة فاضية — أضف سطر واحد على الأقل'; return; }
     const btn = $('purSaveBtn');
@@ -555,15 +572,14 @@
       const t = invTotals();
       inv.total_before = t.before; inv.disc_value_final = t.disc; inv.total_after = t.after;
 
-      // لقطة الكميات والأسعار — تثبت مع الفاتورة للأبد
       inv.lines.forEach((l) => {
         l.pieces_saved = linePieces(l);
         l.qty_text = qtyText(l);
-        l.price_unit_name = priceUnitName(l);
+        l.price_unit_name = unitName(l, l.price_unit);
         l.cost_per_piece = r2(perPieceCost(l));
+        l.line_total = lineTotal(l);
       });
 
-      // لفة الأصناف: الموجود يزيد مخزونه ويحدّث تكلفته — الجديد بيتولد
       for (let i = 0; i < inv.lines.length; i++) {
         const l = inv.lines[i];
         if (l.existing_id) {
@@ -600,7 +616,6 @@
         }
       }
 
-      // حفظ بيانات المورد تلقائيًا لو جديد
       if (inv.supplier_name.trim()) {
         const sups = await DB.all('suppliers');
         const hit = sups.find((s) => normAr(s.name) === normAr(inv.supplier_name));
@@ -649,15 +664,14 @@
     return box;
   }
 
-  // ===== بناء HTML الفاتورة (عرض + طباعة) =====
   function invoiceHTML(doc, mode, previewOnly) {
     const t = { before: doc.total_before, disc: doc.disc_value_final || 0, after: doc.total_after };
     const isA4 = mode === 'a4';
-        const rows = doc.lines.map((l) => {
+    const rows = doc.lines.map((l) => {
       const qty = l.qty_text || ((l.pieces_saved || 0) + ' قطعة');
       const price = r2(l.unit_price) + (l.price_unit_name ? '/' + esc(l.price_unit_name) : '');
-      const tot = l.pieces_saved && l.unit_price ? r2(l.pieces_saved * (l.cost_per_piece || (l.unit_price / 1))) : (l.total_line || 0);
-      return '<tr><td>' + esc(l.name) + '</td><td>' + esc(qty) + '</td><td>' + price + '</td><td>' + r2(l.line_total || tot) + '</td></tr>';
+      const tot = (l.line_total != null) ? l.line_total : r2((l.pieces_saved || 0) * (l.cost_per_piece || l.unit_price || 0));
+      return '<tr><td>' + esc(l.name) + '</td><td>' + esc(qty) + '</td><td>' + price + '</td><td>' + r2(tot) + '</td></tr>';
     }).join('');
     return '' +
       '<div class="inv ' + (isA4 ? 'inv-a4' : 'inv-th') + '">' +
